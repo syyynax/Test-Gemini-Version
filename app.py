@@ -11,7 +11,7 @@ database.init_db()
 
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home & Profil", "Activity Planner"])
+page = st.sidebar.radio("Go to", ["Home & Profil", "Activity Planner", "Gruppen-Kalender"])
 
 # --- SEITE 1: PROFIL ---
 if page == "Home & Profil":
@@ -48,7 +48,6 @@ if page == "Home & Profil":
 elif page == "Activity Planner":
     st.title("📅 Smart Group Planner")
     
-    # 1. AUTHENTIFIZIERUNG (Modul: auth.py)
     auth_result = auth.get_google_service()
     
     user_busy_map = {} 
@@ -57,7 +56,6 @@ elif page == "Activity Planner":
         st.warning("Nicht verbunden.")
         st.link_button("Mit Google Kalender verbinden", auth_result)
     elif auth_result:
-        # 2. DATEN HOLEN (Modul: google_service.py)
         service = auth_result
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
@@ -72,7 +70,6 @@ elif page == "Activity Planner":
 
     st.divider()
 
-    # 3. INTERAKTION (UI)
     all_users_data = database.get_all_users()
     if not all_users_data:
         st.warning("Bitte erst Profile auf der Home-Seite anlegen.")
@@ -82,7 +79,6 @@ elif page == "Activity Planner":
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
         if st.button("🚀 Analyse Starten") and selected:
-            # 4. LOGIK & ML (Modul: recommender.py)
             events_df = recommender.load_local_events()
             
             ranked_df = recommender.find_best_slots_for_group(
@@ -93,16 +89,13 @@ elif page == "Activity Planner":
                 min_attendees=2
             )
             
-            # 5. VISUALISIERUNG
             if not ranked_df.empty:
                 st.subheader("🎯 Top Vorschläge")
                 
-                # Top Ergebnisse als Liste
                 for idx, row in ranked_df.head(5).iterrows():
                     match_percent = int(row['match_score'] * 100)
                     count = row['attendee_count']
                     total = len(selected)
-                    color = "green" if count == total else "orange"
                     
                     with st.expander(f"{row['Title']} ({count}/{total} Personen) - {match_percent}% Match", expanded=True):
                         c1, c2 = st.columns([1, 2])
@@ -112,8 +105,7 @@ elif page == "Activity Planner":
                         c2.progress(match_percent / 100, f"Match: {match_percent}%")
                         c2.write(f"_{row['Description']}_")
 
-                # Kalender Ansicht
-                st.subheader("Kalender Übersicht")
+                st.subheader("Kalender Übersicht der Vorschläge")
                 cal_events = []
                 for _, row in ranked_df.iterrows():
                     cal_events.append({
@@ -127,3 +119,58 @@ elif page == "Activity Planner":
 
             else:
                 st.warning("Keine Termine gefunden, an denen mindestens 2 Personen Zeit haben.")
+
+# --- SEITE 3: GRUPPEN KALENDER ---
+elif page == "Gruppen-Kalender":
+    st.title("🗓️ Gruppen-Kalender Übersicht")
+    st.write("Hier seht ihr alle Termine aller Freunde in einer Übersicht.")
+    
+    auth_result = auth.get_google_service()
+    
+    if auth_result and not isinstance(auth_result, str):
+        service = auth_result
+        all_users_db = database.get_all_users()
+        all_user_names = [u[0] for u in all_users_db]
+        
+        # Events laden
+        user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
+        
+        cal_events = []
+        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#F7DC6F", "#BB8FCE", "#D2B4DE"]
+        
+        for i, (user_name, events) in enumerate(user_busy_map.items()):
+            color = colors[i % len(colors)]
+            
+            for event in events:
+                cal_events.append({
+                    # RÜCKGÄNGIG GEMACHT: Titel wird wieder angezeigt
+                    "title": f"{user_name}: {event.get('summary', 'Termin')}",
+                    "start": event['start'].isoformat(),
+                    "end": event['end'].isoformat(),
+                    "backgroundColor": color,
+                    "borderColor": color,
+                    "allDay": False
+                })
+        
+        if cal_events:
+            calendar(events=cal_events, options={
+                "initialView": "dayGridMonth",
+                "headerToolbar": {
+                    "left": "prev,next today",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek,listWeek"
+                },
+                "height": 700
+            })
+            
+            st.write("Legende:")
+            cols = st.columns(len(user_busy_map))
+            for i, user_name in enumerate(user_busy_map.keys()):
+                color = colors[i % len(colors)]
+                cols[i].markdown(f":{color}[**{user_name}**]")
+                
+        else:
+            st.info("Keine Termine gefunden.")
+            
+    else:
+        st.warning("Bitte gehe zuerst zum 'Activity Planner' und verbinde dich mit Google.")
