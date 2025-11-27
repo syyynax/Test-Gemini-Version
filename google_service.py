@@ -3,14 +3,7 @@ from datetime import datetime
 def fetch_and_map_events(service, all_user_names):
     """
     Holt Events aus dem Google Kalender und ordnet sie Usern zu.
-    
-    Args:
-        service: Das Google API Service Objekt
-        all_user_names: Liste aller bekannten Usernamen aus der DB
-        
-    Returns:
-        user_busy_map: Dictionary {'Max': [{'start':..., 'end':...}], ...}
-        stats: Dictionary mit Statistiken (Anzahl Events etc.)
+    Inklusive 'summary' für die visuelle Darstellung.
     """
     # 1. Zeitraum definieren (Heute bis in 30 Tagen)
     now = datetime.utcnow().isoformat() + 'Z'
@@ -45,6 +38,7 @@ def fetch_and_map_events(service, all_user_names):
                 # Check: Ist der Name im Titel enthalten? (Case insensitive)
                 if name.lower() in summary:
                     user_busy_map[name].append({
+                        'summary': event.get('summary', 'Termin'), # Titel speichern
                         'start': start_dt, 
                         'end': end_dt
                     })
