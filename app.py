@@ -1,0 +1,129 @@
+import streamlit as st
+import database
+import auth
+import google_service
+import recommender
+from streamlit_calendar import calendar
+
+# --- SETUP ---
+st.set_page_config(page_title="HSG Activity Planner", layout="wide")
+database.init_db()
+
+# --- SIDEBAR ---
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ["Home & Profil", "Activity Planner"])
+
+# --- SEITE 1: PROFIL ---
+if page == "Home & Profil":
+    st.title("👤 User Profil & Setup")
+    
+    with st.form("profile_form"):
+        st.info("💡 Tipp: Dein Name muss im Titel deiner Google Kalender Termine vorkommen (z.B. 'Max: Zahnarzt'), damit die App sie zuordnen kann.")
+        name = st.text_input("Dein Name")
+        email = st.text_input("Email")
+        
+        st.write("Deine Interessen:")
+        c1, c2, c3 = st.columns(3)
+        prefs = []
+        if c1.checkbox("Sport"): prefs.append("Sport")
+        if c2.checkbox("Kultur"): prefs.append("Kultur")
+        if c3.checkbox("Party"): prefs.append("Party")
+        if c1.checkbox("Essen"): prefs.append("Essen")
+        if c2.checkbox("Lernen"): prefs.append("Education")
+        if c3.checkbox("Outdoor"): prefs.append("Outdoor")
+        
+        if st.form_submit_button("Profil Speichern"):
+            if database.add_user(name, email, prefs):
+                st.success(f"Profil für {name} gespeichert!")
+            else: 
+                st.error("Fehler beim Speichern.")
+
+    st.divider()
+    st.subheader("Aktuelle User in der Datenbank")
+    for u in database.get_all_users():
+        st.text(f"• {u[0]} (Interessen: {u[1]})")
+
+
+# --- SEITE 2: PLANNER ---
+elif page == "Activity Planner":
+    st.title("📅 Smart Group Planner")
+    
+    # 1. AUTHENTIFIZIERUNG (Modul: auth.py)
+    auth_result = auth.get_google_service()
+    
+    user_busy_map = {} 
+    
+    if isinstance(auth_result, str):
+        st.warning("Nicht verbunden.")
+        st.link_button("Mit Google Kalender verbinden", auth_result)
+    elif auth_result:
+        # 2. DATEN HOLEN (Modul: google_service.py)
+        service = auth_result
+        all_users_db = database.get_all_users()
+        all_user_names = [u[0] for u in all_users_db]
+        
+        user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
+        
+        st.success(f"✅ Verbunden! {stats['total_events']} Termine geladen.")
+        if stats['unassigned'] > 0:
+            st.caption(f"ℹ️ {stats['unassigned']} Termine ignoriert (Kein User-Name im Titel gefunden).")
+    else:
+        st.error("⚠️ `client_secret.json` fehlt. Bitte im Projektordner ablegen.")
+
+    st.divider()
+
+    # 3. INTERAKTION (UI)
+    all_users_data = database.get_all_users()
+    if not all_users_data:
+        st.warning("Bitte erst Profile auf der Home-Seite anlegen.")
+    else:
+        user_names = [u[0] for u in all_users_data]
+        selected = st.multiselect("Wer soll geplant werden?", user_names, default=user_names)
+        user_prefs_dict = {u[0]: u[1] for u in all_users_data}
+
+        if st.button("🚀 Analyse Starten") and selected:
+            # 4. LOGIK & ML (Modul: recommender.py)
+            events_df = recommender.load_local_events()
+            
+            ranked_df = recommender.find_best_slots_for_group(
+                events_df, 
+                user_busy_map, 
+                selected, 
+                user_prefs_dict,
+                min_attendees=2
+            )
+            
+            # 5. VISUALISIERUNG
+            if not ranked_df.empty:
+                st.subheader("🎯 Top Vorschläge")
+                
+                # Top Ergebnisse als Liste
+                for idx, row in ranked_df.head(5).iterrows():
+                    match_percent = int(row['match_score'] * 100)
+                    count = row['attendee_count']
+                    total = len(selected)
+                    color = "green" if count == total else "orange"
+                    
+                    with st.expander(f"{row['Title']} ({count}/{total} Personen) - {match_percent}% Match", expanded=True):
+                        c1, c2 = st.columns([1, 2])
+                        c1.write(f"📅 **{row['Start'].strftime('%d.%m. %H:%M')}**")
+                        c1.caption(row['Category'])
+                        c2.write(f"**Dabei:** {row['attendees']}")
+                        c2.progress(match_percent / 100, f"Match: {match_percent}%")
+                        c2.write(f"_{row['Description']}_")
+
+                # Kalender Ansicht
+                st.subheader("Kalender Übersicht")
+                cal_events = []
+                for _, row in ranked_df.iterrows():
+                    cal_events.append({
+                        "title": f"{row['Title']} ({row['attendee_count']} Pers.)",
+                        "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
+                        "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
+                        "backgroundColor": "#28a745" if row['attendee_count'] == len(selected) else "#ffc107",
+                        "borderColor": "white"
+                    })
+                calendar(events=cal_events, options={"initialView": "listWeek", "height": 400})
+
+            else:
+                st.warning("Keine Termine gefunden, an denen mindestens 2 Personen Zeit haben.")
