@@ -5,12 +5,15 @@ from googleapiclient.discovery import build
 
 # Konfiguration
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-REDIRECT_URI = "https://projectrepo-nelb9xkappkqy6bhbwcmqwp.streamlit.app"
+
+# --- IHRE URL (WICHTIG!) ---
+# Wir nutzen die Version OHNE Slash am Ende, das ist Standard bei Streamlit.
+REDIRECT_URI = "https://meetly-augzgdgermpiwnemrvgyuv.streamlit.app"
 
 def get_google_service():
     """
     Handled den Login-Flow. 
-    Liest Secrets aus 'GOOGLE_OAUTH_CLIENT.web.*' (Ihre Struktur)
+    Liest Secrets aus 'GOOGLE_OAUTH_CLIENT.web.*'
     """
     if "credentials" not in st.session_state:
         st.session_state.credentials = None
@@ -22,20 +25,15 @@ def get_google_service():
     # 2. Login Flow starten
     flow = None
     
-    # --- ANPASSUNG: Wir suchen nach Ihrer spezifischen Secret-Struktur ---
+    # Secrets laden (Ihre Struktur: GOOGLE_OAUTH_CLIENT.web...)
     secrets_data = None
-    
-    # Fall A: Ihre Struktur (GOOGLE_OAUTH_CLIENT -> web)
     if "GOOGLE_OAUTH_CLIENT" in st.secrets and "web" in st.secrets["GOOGLE_OAUTH_CLIENT"]:
         secrets_data = st.secrets["GOOGLE_OAUTH_CLIENT"]["web"]
-    
-    # Fall B: Standard Struktur (direkt [web] - als Fallback)
     elif "web" in st.secrets:
         secrets_data = st.secrets["web"]
 
     if secrets_data:
         try:
-            # Wir bauen das Dictionary so nach, wie die Library es erwartet
             client_config = {"web": {
                 "client_id": secrets_data["client_id"],
                 "project_id": secrets_data["project_id"],
@@ -43,7 +41,8 @@ def get_google_service():
                 "token_uri": secrets_data["token_uri"],
                 "auth_provider_x509_cert_url": secrets_data["auth_provider_x509_cert_url"],
                 "client_secret": secrets_data["client_secret"],
-                "redirect_uris": secrets_data["redirect_uris"],
+                # Wir überschreiben die Redirect URIs aus dem Secret mit Ihrer neuen URL
+                "redirect_uris": [REDIRECT_URI],
             }}
             
             flow = Flow.from_client_config(
@@ -52,10 +51,10 @@ def get_google_service():
                 redirect_uri=REDIRECT_URI
             )
         except Exception as e:
-            st.error(f"Fehler beim Lesen der Secrets: {e}")
+            st.error(f"Fehler bei Secrets: {e}")
             return None
 
-    # OPTION C: Fallback auf Datei (falls lokal getestet wird)
+    # Fallback auf Datei (nur für lokale Tests relevant)
     elif os.path.exists('client_secret.json'):
         try:
             flow = Flow.from_client_secrets_file(
@@ -64,15 +63,14 @@ def get_google_service():
                 redirect_uri=REDIRECT_URI
             )
         except Exception as e:
-            st.error(f"Fehler beim Laden von client_secret.json: {e}")
+            st.error(f"Fehler bei Datei: {e}")
             return None
     
     if not flow:
         st.error("⚠️ Keine Konfiguration gefunden.")
-        st.info("Prüfen Sie, ob die Secrets korrekt in Streamlit eingetragen sind.")
         return None
 
-    # 3. Auth Code verarbeiten
+    # 3. Auth Code verarbeiten (wenn User von Google zurückkommt)
     auth_code = st.query_params.get("code")
     if auth_code:
         try:
@@ -81,7 +79,8 @@ def get_google_service():
             st.query_params.clear()
             st.rerun()
         except Exception as e:
-            st.warning("⚠️ Login-Sitzung abgelaufen.")
+            st.warning("⚠️ Login fehlgeschlagen.")
+            st.caption(f"Grund: {e}")
             if st.button("🔄 Neu versuchen"):
                 st.query_params.clear()
                 st.rerun()
