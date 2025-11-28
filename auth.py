@@ -27,6 +27,9 @@ def get_google_service():
                 scopes=SCOPES,
                 redirect_uri=REDIRECT_URI
             )
+            # Sicherheitsnetz: Redirect URI explizit setzen
+            flow.redirect_uri = REDIRECT_URI
+            
         except Exception as e:
             st.error(f"Fehler beim Laden von client_secret.json: {e}")
             return None
@@ -41,9 +44,18 @@ def get_google_service():
                 st.query_params.clear()
                 st.rerun()
             except Exception as e:
-                # Dieser Fehler passiert oft, wenn man einen alten Link benutzt
-                st.error("Login-Sitzung abgelaufen oder ungültig.")
-                st.info("Bitte laden Sie die Seite neu (F5) und klicken Sie erneut auf 'Mit Google Kalender verbinden'.")
+                # Detaillierte Fehlermeldung für Debugging
+                st.error("Login fehlgeschlagen (UnauthorizedClientError).")
+                st.warning("Diagnose:")
+                st.write(f"1. Der Code sendet diese Redirect-URL: `{REDIRECT_URI}`")
+                st.write("2. Bitte prüfen Sie in der Google Cloud Console, ob diese URL exakt so unter 'Autorisierte Weiterleitungs-URIs' steht.")
+                st.write("3. Fügen Sie in der Cloud Console zur Sicherheit auch die Variante mit '/' am Ende hinzu.")
+                st.code(f"Fehler-Details: {e}")
+                
+                # Button zum Bereinigen der URL
+                if st.button("Zurück zum Start (URL bereinigen)"):
+                    st.query_params.clear()
+                    st.rerun()
                 return None
             
         else:
