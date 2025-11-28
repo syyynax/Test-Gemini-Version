@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 # Konfiguration
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 # WICHTIG: Ändert dies auf eure deployed URL, wenn ihr online geht
-REDIRECT_URI = "http://localhost:8501" 
+REDIRECT_URI = "https://projectrepo-nelb9xkappkqy6bhbwcmqwp.streamlit.app"
 
 def get_google_service():
     """
