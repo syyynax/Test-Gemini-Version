@@ -49,7 +49,7 @@ if page == "Home & Profil":
 elif page == "Activity Planner":
     st.title("📅 Smart Group Planner")
     
-    # Nutzt jetzt wieder das auth.py Modul
+    # Login über auth.py
     auth_result = auth.get_google_service()
     
     user_busy_map = {} 
@@ -62,15 +62,14 @@ elif page == "Activity Planner":
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
         
-        # Events laden über das google_service Modul
+        # Events laden
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         st.success(f"✅ Verbunden! {stats['total_events']} Termine geladen.")
         if stats['unassigned'] > 0:
             st.caption(f"ℹ️ {stats['unassigned']} Termine ignoriert (Kein User-Name im Titel gefunden).")
-    elif auth_result is None:
-        # Fehlerfall (z.B. client_secret fehlt oder Login Error) wird in auth.py schon angezeigt
-        pass
+    
+    # Kein else-Block nötig, Fehler werden in auth.py behandelt
 
     st.divider()
 
@@ -136,7 +135,6 @@ elif page == "Gruppen-Kalender":
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
         
-        # Events laden
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         cal_events = []
