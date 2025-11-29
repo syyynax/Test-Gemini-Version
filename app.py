@@ -17,11 +17,14 @@ page = st.sidebar.radio("Go to", ["Home & Profil", "Activity Planner", "Gruppen-
 # --- SEITE 1: PROFIL ---
 if page == "Home & Profil":
     st.title("👤 User Profil & Setup")
+    st.write("Erstelle hier Profile für dich und deine Freunde.")
     
-    with st.form("profile_form"):
-        st.info("💡 Tipp: Dein Name muss im Titel deiner Google Kalender Termine vorkommen.")
-        name = st.text_input("Dein Name")
-        email = st.text_input("Email")
+    # clear_on_submit=True sorgt dafür, dass die Felder nach dem Speichern leer werden
+    with st.form("profile_form", clear_on_submit=True):
+        st.info("💡 Tipp: Nutze unterschiedliche E-Mails für unterschiedliche Personen.")
+        # Markierung als Pflichtfeld im Label
+        name = st.text_input("Dein Name *")
+        email = st.text_input("Email (dient als ID) *")
         
         st.write("Deine Interessen:")
         c1, c2, c3 = st.columns(3)
@@ -33,19 +36,34 @@ if page == "Home & Profil":
         if c2.checkbox("Lernen"): prefs.append("Education")
         if c3.checkbox("Outdoor"): prefs.append("Outdoor")
         
-        if st.form_submit_button("Profil Speichern"):
-            if database.add_user(name, email, prefs):
-                st.success(f"Profil für {name} gespeichert!")
-            else: 
-                st.error("Fehler beim Speichern.")
+        submitted = st.form_submit_button("Profil Speichern")
+        
+        if submitted:
+            # --- VALIDIERUNG: Sind die Pflichtfelder da? ---
+            if not name.strip():
+                st.error("❌ Bitte gib einen Namen ein.")
+            elif not email.strip():
+                st.error("❌ Bitte gib eine E-Mail-Adresse ein.")
+            else:
+                # Alles ok -> Speichern
+                success, operation = database.add_user(name, email, prefs)
+                if success:
+                    if operation == "updated":
+                        st.success(f"Profil von {name} wurde aktualisiert!")
+                    else:
+                        st.success(f"Neues Profil für {name} erstellt!")
+                else: 
+                    st.error(f"Fehler: {operation}")
 
     st.divider()
-    st.subheader("Aktuelle User")
+    st.subheader("Aktuelle User in der Datenbank")
     users = database.get_all_users()
     if not users:
-        st.error("⚠️ Bitte User anlegen!")
-    for u in users:
-        st.text(f"• {u[0]} ({u[1]})")
+        st.warning("Noch keine User angelegt.")
+    else:
+        for u in users:
+            st.text(f"• {u[0]} (Interessen: {u[1]})")
+
 
 # --- SEITE 2: PLANNER ---
 elif page == "Activity Planner":
@@ -67,16 +85,10 @@ elif page == "Activity Planner":
         # Events holen
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
-        # --- DIAGNOSE BOX (Original Version) ---
-        with st.expander("🔍 Diagnose: Warum sehe ich welche Termine?", expanded=True):
-            st.write(f"Google hat insgesamt **{stats['total_events']} Termine** (mit Uhrzeit) ab jetzt gefunden.")
-            st.write(f"Davon wurden **{stats['assigned']}** erfolgreich einem User zugeordnet.")
-            
+        with st.expander("🔍 Diagnose: Termine", expanded=False):
+            st.write(f"Google hat {stats['total_events']} Termine gefunden.")
             if stats['unassigned_titles']:
-                st.warning(f"⚠️ {len(stats['unassigned_titles'])} Termine ignoriert (Kein User-Name im Titel):")
-                st.write(stats['unassigned_titles'])
-                st.caption(f"Gesuchte Namen waren: {', '.join(all_user_names)}")
-        # ---------------------------------------
+                st.write(f"Ignoriert: {stats['unassigned_titles']}")
 
     st.divider()
 
@@ -88,22 +100,37 @@ elif page == "Activity Planner":
         selected = st.multiselect("Wer soll geplant werden?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
+        # --- FIX: Session State initialisieren ---
+        if 'ranked_results' not in st.session_state:
+            st.session_state.ranked_results = None
+
+        # Wenn Button geklickt wird -> Berechnen und in Session State SPEICHERN
         if st.button("🚀 Analyse Starten") and selected:
-            # Events laden
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
 
-            ranked_df = recommender.find_best_slots_for_group(
+            # Ergebnis merken!
+            st.session_state.ranked_results = recommender.find_best_slots_for_group(
                 events_df, 
                 user_busy_map, 
                 selected, 
                 user_prefs_dict,
                 min_attendees=2
             )
+
+        # --- ANZEIGE: Immer das anzeigen, was im Speicher ist ---
+        if st.session_state.ranked_results is not None:
+            ranked_df = st.session_state.ranked_results
             
             if not ranked_df.empty:
                 st.subheader("🎯 Top Vorschläge")
+                
+                # Option zum Zurücksetzen
+                if st.button("Ergebnisse löschen"):
+                    st.session_state.ranked_results = None
+                    st.rerun()
+
                 for idx, row in ranked_df.head(5).iterrows():
                     match_percent = int(row['match_score'] * 100)
                     with st.expander(f"{row['Title']} ({row['attendee_count']} Pers.) - {match_percent}% Match", expanded=True):
@@ -121,7 +148,7 @@ elif page == "Activity Planner":
                     })
                 calendar(events=cal_events, options={"initialView": "listWeek", "height": 400})
             else:
-                st.warning("Keine Termine gefunden.")
+                st.warning("Keine passenden Termine gefunden.")
 
 # --- SEITE 3: GRUPPEN KALENDER ---
 elif page == "Gruppen-Kalender":
