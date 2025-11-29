@@ -67,12 +67,16 @@ elif page == "Activity Planner":
         # Events holen
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
-        # --- DIAGNOSE BOX ---
-        with st.expander("🔍 Diagnose: Termine", expanded=False):
-            st.write(f"Google hat {stats['total_events']} Termine gefunden.")
+        # --- DIAGNOSE BOX (Original Version) ---
+        with st.expander("🔍 Diagnose: Warum sehe ich welche Termine?", expanded=True):
+            st.write(f"Google hat insgesamt **{stats['total_events']} Termine** (mit Uhrzeit) ab jetzt gefunden.")
+            st.write(f"Davon wurden **{stats['assigned']}** erfolgreich einem User zugeordnet.")
+            
             if stats['unassigned_titles']:
-                st.warning(f"Ignorierte Termine: {stats['unassigned_titles']}")
-        # --------------------
+                st.warning(f"⚠️ {len(stats['unassigned_titles'])} Termine ignoriert (Kein User-Name im Titel):")
+                st.write(stats['unassigned_titles'])
+                st.caption(f"Gesuchte Namen waren: {', '.join(all_user_names)}")
+        # ---------------------------------------
 
     st.divider()
 
@@ -84,38 +88,22 @@ elif page == "Activity Planner":
         selected = st.multiselect("Wer soll geplant werden?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
-        # --- FIX: Session State nutzen ---
-        # 1. Initialisieren, falls noch nicht vorhanden
-        if 'ranked_results' not in st.session_state:
-            st.session_state.ranked_results = None
-
-        # 2. Button Klick führt Berechnung aus UND speichert in Session State
         if st.button("🚀 Analyse Starten") and selected:
+            # Events laden
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
 
-            # Berechnung und Speichern im State
-            st.session_state.ranked_results = recommender.find_best_slots_for_group(
+            ranked_df = recommender.find_best_slots_for_group(
                 events_df, 
                 user_busy_map, 
                 selected, 
                 user_prefs_dict,
                 min_attendees=2
             )
-
-        # 3. Anzeige basierend auf Session State (bleibt auch nach Rerun da)
-        if st.session_state.ranked_results is not None:
-            ranked_df = st.session_state.ranked_results
             
             if not ranked_df.empty:
                 st.subheader("🎯 Top Vorschläge")
-                
-                # Reset Button, um die Ergebnisse wieder auszublenden
-                if st.button("Ergebnisse zurücksetzen"):
-                    st.session_state.ranked_results = None
-                    st.rerun()
-
                 for idx, row in ranked_df.head(5).iterrows():
                     match_percent = int(row['match_score'] * 100)
                     with st.expander(f"{row['Title']} ({row['attendee_count']} Pers.) - {match_percent}% Match", expanded=True):
