@@ -75,7 +75,7 @@ def load_local_events(file_path="events.xlsx"):
                         if 'category' in row: cat = row['category']
                         elif 'kategorie' in row: cat = row['kategorie']
 
-                        raw_loc = row.get('location'
+                        raw_loc = row.get('location')
 
                         generated_events.append({
                             'Title': row['event_name'],
