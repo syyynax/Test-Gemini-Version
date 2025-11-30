@@ -206,7 +206,6 @@ elif page == "Group Calendar":
             # Show Visualization (New Feature)
             # This calls the function in visualization.py
             visualization.show_visualizations(visualization_data)
-            st.caption("See how busy you are this week and who among you is the busiest.") # DEIN NEUER UNTERTITEL
             
         else:
             st.info("No events found.")
