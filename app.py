@@ -12,83 +12,84 @@ database.init_db()
 
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
-# "Start" ist jetzt die erste Option (Standard)
-page = st.sidebar.radio("Go to", ["Start", "Home & Profil", "Activity Planner", "Gruppen-Kalender"])
+# "Start" is now the first option (Default)
+# Translating UI to English as requested
+page = st.sidebar.radio("Go to", ["Start", "Home & Profile", "Activity Planner", "Group Calendar"])
 
-# --- SEITE 0: STARTSEITE (NEU) ---
+# --- PAGE 0: START PAGE (NEW) ---
 if page == "Start":
-    st.title("✨ Welcome to Meetly!")
-    st.header("The App to finally bring your friends together.")
+    # Centered Title and Header for better aesthetics
+    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly!</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>The App to finally bring your friends together.</h3>", unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # Eine kleine Anleitung, damit die App "rund" wirkt
+    # A short guide to make the app feel "complete"
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("""
-        ### So funktioniert's:
+        ### How it works:
         
-        1. **👤 Profil erstellen** Gehe zu *Home & Profil* und trage dich ein.
+        1. **👤 Create Profile** Go to *Home & Profile* and register yourself.
            
-        2. **📅 Kalender verbinden** Verknüpfe deinen Google Kalender im *Activity Planner*.
+        2. **📅 Connect Calendar** Link your Google Calendar in the *Activity Planner*.
            
-        3. **🚀 Planen** Lass Meetly die perfekten Termine und Aktivitäten für deine Gruppe finden!
+        3. **🚀 Plan** Let Meetly find the perfect time slots and activities for your group!
         """)
     
     with col2:
-        st.info("👈 Wähle im Menü links 'Home & Profil' um zu starten!")
+        st.info("👈 Select 'Home & Profile' in the menu on the left to get started!")
 
-# --- SEITE 1: PROFIL ---
-elif page == "Home & Profil":
-    st.title("👤 User Profil & Setup")
-    st.write("Erstelle hier Profile für dich und deine Freunde.")
+# --- PAGE 1: PROFILE ---
+elif page == "Home & Profile":
+    st.title("👤 User Profile & Setup")
+    st.write("Create profiles for you and your friends here.")
     
     with st.form("profile_form", clear_on_submit=True):
-        st.info("💡 Tipp: Nutze unterschiedliche E-Mails für unterschiedliche Personen.")
-        # Markierung als Pflichtfeld im Label
-        name = st.text_input("Dein Name *")
-        email = st.text_input("Email (dient als ID) *")
+        st.info("💡 Tip: Use different emails for different people.")
+        name = st.text_input("Your Name *")
+        email = st.text_input("Email (serves as ID) *")
         
-        st.write("Deine Interessen:")
+        st.write("Your Interests:")
         c1, c2, c3 = st.columns(3)
         prefs = []
         if c1.checkbox("Sport"): prefs.append("Sport")
-        if c2.checkbox("Kultur"): prefs.append("Kultur")
+        if c2.checkbox("Culture"): prefs.append("Kultur") # Keeping DB value keys stable
         if c3.checkbox("Party"): prefs.append("Party")
-        if c1.checkbox("Essen"): prefs.append("Essen")
-        if c2.checkbox("Lernen"): prefs.append("Education")
+        if c1.checkbox("Food"): prefs.append("Essen")
+        if c2.checkbox("Education"): prefs.append("Education")
         if c3.checkbox("Outdoor"): prefs.append("Outdoor")
         
-        submitted = st.form_submit_button("Profil Speichern")
+        submitted = st.form_submit_button("Save Profile")
         
         if submitted:
-            # --- VALIDIERUNG ---
+            # --- VALIDATION ---
             if not name.strip():
-                st.error("❌ Bitte gib einen Namen ein.")
+                st.error("❌ Please enter a name.")
             elif not email.strip():
-                st.error("❌ Bitte gib eine E-Mail-Adresse ein.")
+                st.error("❌ Please enter an email address.")
             else:
                 success, operation = database.add_user(name, email, prefs)
                 if success:
                     if operation == "updated":
-                        st.success(f"Profil von {name} wurde aktualisiert!")
+                        st.success(f"Profile for {name} updated!")
                     else:
-                        st.success(f"Neues Profil für {name} erstellt!")
+                        st.success(f"New profile created for {name}!")
                 else: 
-                    st.error(f"Fehler: {operation}")
+                    st.error(f"Error: {operation}")
 
     st.divider()
-    st.subheader("Aktuelle User in der Datenbank")
+    st.subheader("Current Users in Database")
     users = database.get_all_users()
     if not users:
-        st.warning("Noch keine User angelegt.")
+        st.warning("No users created yet.")
     else:
         for u in users:
-            st.text(f"• {u[0]} (Interessen: {u[1]})")
+            st.text(f"• {u[0]} (Interests: {u[1]})")
 
 
-# --- SEITE 2: PLANNER ---
+# --- PAGE 2: PLANNER ---
 elif page == "Activity Planner":
     st.title("📅 Smart Group Planner")
     
@@ -96,43 +97,43 @@ elif page == "Activity Planner":
     user_busy_map = {} 
     
     if isinstance(auth_result, str):
-        st.warning("Nicht verbunden.")
-        st.link_button("Mit Google Kalender verbinden", auth_result)
+        st.warning("Not connected.")
+        st.link_button("Connect with Google Calendar", auth_result)
     elif auth_result:
         service = auth_result
-        st.success("✅ Verbunden!")
+        st.success("✅ Connected!")
         
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
         
-        # Events holen
+        # Fetch Events
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
-        with st.expander("🔍 Diagnose: Termine", expanded=False):
-            st.write(f"Google hat {stats['total_events']} Termine gefunden.")
+        with st.expander("🔍 Diagnostic: Events", expanded=False):
+            st.write(f"Google found {stats['total_events']} events.")
             if stats['unassigned_titles']:
-                st.write(f"Ignoriert: {stats['unassigned_titles']}")
+                st.write(f"Ignored: {stats['unassigned_titles']}")
 
     st.divider()
 
     all_users_data = database.get_all_users()
     if not all_users_data:
-        st.warning("Bitte erst Profile anlegen.")
+        st.warning("Please create profiles first.")
     else:
         user_names = [u[0] for u in all_users_data]
-        selected = st.multiselect("Wer soll geplant werden?", user_names, default=user_names)
+        selected = st.multiselect("Who is planning?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
         # --- SESSION STATE ---
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
-        if st.button("🚀 Analyse Starten") and selected:
+        if st.button("🚀 Start Analysis") and selected:
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
 
-            # Speichern im Session State
+            # Save to Session State
             st.session_state.ranked_results = recommender.find_best_slots_for_group(
                 events_df, 
                 user_busy_map, 
@@ -141,22 +142,22 @@ elif page == "Activity Planner":
                 min_attendees=2
             )
 
-        # --- ANZEIGE ---
+        # --- DISPLAY ---
         if st.session_state.ranked_results is not None:
             ranked_df = st.session_state.ranked_results
             
             if not ranked_df.empty:
-                st.subheader("🎯 Top Vorschläge")
+                st.subheader("🎯 Top Suggestions")
                 
-                if st.button("Ergebnisse löschen"):
+                if st.button("Clear Results"):
                     st.session_state.ranked_results = None
                     st.rerun()
 
                 for idx, row in ranked_df.head(5).iterrows():
                     match_percent = int(row['match_score'] * 100)
-                    with st.expander(f"{row['Title']} ({row['attendee_count']} Pers.) - {match_percent}% Match", expanded=True):
+                    with st.expander(f"{row['Title']} ({row['attendee_count']} Ppl.) - {match_percent}% Match", expanded=True):
                         st.write(f"📅 {row['Start'].strftime('%d.%m. %H:%M')} | {row['Category']}")
-                        st.write(f"Dabei: {row['attendees']}")
+                        st.write(f"Attendees: {row['attendees']}")
                         st.progress(match_percent / 100)
                 
                 cal_events = []
@@ -169,11 +170,11 @@ elif page == "Activity Planner":
                     })
                 calendar(events=cal_events, options={"initialView": "listWeek", "height": 400})
             else:
-                st.warning("Keine passenden Termine gefunden.")
+                st.warning("No suitable events found.")
 
-# --- SEITE 3: GRUPPEN KALENDER ---
-elif page == "Gruppen-Kalender":
-    st.title("🗓️ Gruppen-Kalender Übersicht")
+# --- PAGE 3: GROUP CALENDAR ---
+elif page == "Group Calendar":
+    st.title("🗓️ Group Calendar Overview")
     auth_result = auth.get_google_service()
     if auth_result and not isinstance(auth_result, str):
         service = auth_result
@@ -199,6 +200,6 @@ elif page == "Gruppen-Kalender":
         if cal_events:
             calendar(events=cal_events, options={"initialView": "dayGridMonth", "height": 700})
         else:
-            st.info("Keine Termine gefunden.")
+            st.info("No events found.")
     else:
-        st.warning("Bitte erst verbinden.")
+        st.warning("Please connect first.")
