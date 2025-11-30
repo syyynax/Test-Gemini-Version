@@ -104,31 +104,32 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
         
         if len(attendees) >= min_attendees:
             
-            # 2. Welche Interessen passen? (Detail-Analyse)
+            # 2. Welche Interessen passen? (Detail-Analyse PRO PERSON)
             attendee_prefs_list = []
             matched_tags = set()
             event_text = (str(event.get('Category', '')) + " " + str(event.get('Description', '')) + " " + str(event['Title'])).lower()
             
-            # Zähler: Wie viele Teilnehmer finden das Event gut?
-            happy_attendees_count = 0
+            # Zähler für glückliche User
+            happy_user_count = 0
             
             for attendee in attendees:
                 u_prefs = all_user_prefs.get(attendee, "")
                 attendee_prefs_list.append(u_prefs)
                 
-                user_is_happy = False
+                # Checke ob DIESER User das Event mag
+                user_likes_event = False
                 for pref in u_prefs.split(','):
                     clean_pref = pref.strip()
                     if clean_pref and clean_pref.lower() in event_text:
                         matched_tags.add(clean_pref)
-                        user_is_happy = True
+                        user_likes_event = True
                 
-                if user_is_happy:
-                    happy_attendees_count += 1
+                if user_likes_event:
+                    happy_user_count += 1
 
-            # Berechne die Quote: Wie viel Prozent der Anwesenden mögen das Event?
-            # Beispiel: 1 von 2 Personen = 0.5 (50%)
-            match_ratio = happy_attendees_count / len(attendees) if attendees else 0
+            # Berechne den EHRLICHEN Score: (Anzahl Glückliche / Anzahl Anwesende)
+            # 3 von 4 Leuten = 0.75
+            manual_score = happy_user_count / len(attendees) if len(attendees) > 0 else 0
 
             event_entry = event.copy()
             event_entry['attendees'] = ", ".join(attendees)
@@ -136,8 +137,8 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
             event_entry['group_prefs_text'] = " ".join(attendee_prefs_list)
             event_entry['matched_tags'] = ", ".join(matched_tags) if matched_tags else "General"
             
-            # Wir speichern diese Quote
-            event_entry['manual_match_ratio'] = match_ratio
+            # Speichere unseren berechneten Score
+            event_entry['manual_score'] = manual_score
             
             results.append(event_entry)
 
@@ -147,6 +148,7 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
     result_df = pd.DataFrame(results)
 
     # 3. Machine Learning Score (TF-IDF)
+    # Dient als Fallback oder Ergänzung
     result_df['event_features'] = (
         result_df['Title'].fillna('') + " " + 
         result_df['Category'].fillna('') + " " +  
@@ -156,26 +158,22 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
     try:
         tfidf = TfidfVectorizer(stop_words='english')
         if len(result_df) < 2:
-             result_df['match_score'] = result_df['manual_match_ratio']
+             result_df['match_score'] = result_df['manual_score']
         else:
             tfidf_matrix = tfidf.fit_transform(result_df['event_features'])
             scores = []
             for idx, row in result_df.iterrows():
-                user_vector = tfidf.transform([row['group_prefs_text']])
-                sim = cosine_similarity(user_vector, tfidf_matrix[idx])
+                # Hier nehmen wir unseren ehrlichen manuellen Score
+                # Wenn der > 0 ist (also mind. 1 Person happy), nutzen wir ihn.
+                # Wenn er 0 ist (niemand happy), nehmen wir den ML Score als "Vielleicht passt es ja doch irgendwie"-Wert.
                 
-                ml_score = sim[0][0]
-                
-                # --- LOGIK UPDATE ---
-                # Wenn wir direkte Keyword-Treffer haben (z.B. "Kultur" im Text),
-                # vertrauen wir unserer manuellen Quote (match_ratio).
-                # Wenn wir KEINE direkten Treffer haben (match_ratio == 0),
-                # nehmen wir den ML-Score, falls er "unscharfe" Ähnlichkeiten gefunden hat.
-                
-                if row['manual_match_ratio'] > 0:
-                    final_score = row['manual_match_ratio']
+                if row['manual_score'] > 0:
+                    final_score = row['manual_score']
                 else:
-                    final_score = ml_score
+                    # Fallback auf ML
+                    user_vector = tfidf.transform([row['group_prefs_text']])
+                    sim = cosine_similarity(user_vector, tfidf_matrix[idx])
+                    final_score = sim[0][0]
                 
                 scores.append(final_score)
                 
@@ -183,7 +181,8 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
             
     except Exception as e:
         print(f"ML Fehler: {e}")
-        result_df['match_score'] = 0.5
+        # Im Fehlerfall nehmen wir unseren sicheren manuellen Score
+        result_df['match_score'] = result_df['manual_score']
 
     # Sortieren: Zuerst Score, dann Anzahl
     result_df = result_df.sort_values(by=['match_score', 'attendee_count'], ascending=[False, False])
