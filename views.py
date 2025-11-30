@@ -130,7 +130,6 @@ def show_activity_planner():
     """
     st.title("📅 Smart Group Planner")
     
-    # --- NEU: State für "Load More" Logik ---
     if 'results_limit' not in st.session_state:
         st.session_state.results_limit = 10
     
@@ -231,10 +230,7 @@ def show_activity_planner():
                     # Extract scores safely (using .get to avoid KeyErrors)
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
-                    
-                    # --- NEU: Ort auslesen ---
-                    # HINWEIS: Stelle sicher, dass deine CSV/Excel eine Spalte namens 'Location' hat.
-                    location = row.get('Location', 'TBD') 
+                    location = row.get('location', 'TBD') #TBD = to be determined
 
                     # Determine categories
                     is_avail_perfect = (avail_score >= 0.99)
