@@ -84,9 +84,12 @@ def render_card_content(row, time_str, location, interest_score, avail_score, mi
     # --- LAYOUT ADJUSTMENT ---
     c1, c2, c3 = st.columns([1, 2, 1.5])
     
-    # Column 1: Time
+    # Column 1: Time & Location
     c1.write(f"📅 **{time_str}**")
-    c1.write(f"📍 **{location}**")
+    
+    # Hier trat der Fehler auf, weil 'location' oben fehlte:
+    c1.write(f"📍 **{location}**") 
+    
     c1.caption(f"Category: {row['Category']}")
     
     # Column 2: Attendees
@@ -112,13 +115,14 @@ def render_card_content(row, time_str, location, interest_score, avail_score, mi
             st.info(f"It matches interest: '{row['matched_tags']}'")
         else:
             st.write("It's an available option to consider.")
+        
         if row['Description']:
             st.write(f"_{row['Description']}_")
 
     # The "Add to Calendar" button
     if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
         save_callback(row, color, interest_score)
-
+        
 def show_activity_planner():
     """
     Renders the main planning interface.
