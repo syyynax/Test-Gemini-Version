@@ -389,6 +389,10 @@ def show_group_calendar():
                         time_display = f"{raw_start} - {raw_end}"
                     
                     c1.write(f"🕒 **Time:** {time_display}")
+
+                    loc = props.get('location', '-')
+                    if loc and loc != "TBD":
+                         c1.write(f"📍 **Location:** {loc}")
                     
                     # Display extra info if available (Group Event) vs (Google Event)
                     if "category" in props and props.get("type") != "google":
