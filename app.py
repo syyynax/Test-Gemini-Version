@@ -3,7 +3,7 @@ import database
 import auth
 import google_service
 import recommender
-import visualization  # IMPORT: Visualisierungsmodul
+import visualization
 from streamlit_calendar import calendar
 from datetime import datetime
 
@@ -13,12 +13,11 @@ database.init_db()
 
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
-# Page name updated to "Profiles" as requested
 page = st.sidebar.radio("Go to", ["Start", "Profiles", "Activity Planner", "Group Calendar"])
 
 # --- PAGE 0: START PAGE ---
 if page == "Start":
-    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly! ✨</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly!</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>The App to finally bring your friends together.</h3>", unsafe_allow_html=True)
     st.markdown("---")
     
@@ -47,7 +46,7 @@ elif page == "Profiles":
         c1, c2, c3 = st.columns(3)
         prefs = []
         if c1.checkbox("Sport"): prefs.append("Sport")
-        if c2.checkbox("Culture"): prefs.append("Kultur") # DB values kept stable
+        if c2.checkbox("Culture"): prefs.append("Kultur")
         if c3.checkbox("Party"): prefs.append("Party")
         if c1.checkbox("Food"): prefs.append("Essen")
         if c2.checkbox("Education"): prefs.append("Education")
@@ -56,22 +55,17 @@ elif page == "Profiles":
         submitted = st.form_submit_button("Save Profile")
         
         if submitted:
-            if not name.strip():
-                st.error("❌ Please enter a name.")
-            elif not email.strip():
-                st.error("❌ Please enter an email address.")
+            if not name.strip() or not email.strip():
+                st.error("❌ Please fill out all required fields (*).")
             else:
                 success, operation = database.add_user(name, email, prefs)
                 if success:
-                    if operation == "updated":
-                        st.success(f"Profile for {name} updated!")
-                    else:
-                        st.success(f"New profile created for {name}!")
+                    st.success(f"Profile saved successfully ({operation})!")
                 else: 
                     st.error(f"Error: {operation}")
 
     st.divider()
-    st.subheader("Current Users in Database")
+    st.subheader("Current Users")
     users = database.get_all_users()
     if not users:
         st.warning("No users created yet.")
@@ -96,7 +90,7 @@ elif page == "Activity Planner":
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
         
-        # Fetch Events
+        # Events laden
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         with st.expander("🔍 Diagnostic: Events", expanded=False):
@@ -110,11 +104,12 @@ elif page == "Activity Planner":
     if not all_users_data:
         st.warning("Please create profiles first.")
     else:
+        # Default: Select ALL users
         user_names = [u[0] for u in all_users_data]
         selected = st.multiselect("Who is planning?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
-        # Session State for Results
+        # Session State
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
@@ -128,7 +123,7 @@ elif page == "Activity Planner":
                 user_busy_map, 
                 selected, 
                 user_prefs_dict,
-                min_attendees=2
+                min_attendees=1 # Zeige auch Events, wo nur 1 Person kann, wenn es gut passt
             )
 
         if st.session_state.ranked_results is not None:
@@ -139,23 +134,68 @@ elif page == "Activity Planner":
                 if st.button("Clear Results"):
                     st.session_state.ranked_results = None
                     st.rerun()
-
-                for idx, row in ranked_df.head(5).iterrows():
-                    match_percent = int(row['match_score'] * 100)
-                    with st.expander(f"{row['Title']} ({row['attendee_count']} Ppl.) - {match_percent}% Match", expanded=True):
-                        st.write(f"📅 {row['Start'].strftime('%d.%m. %H:%M')} | {row['Category']}")
-                        st.write(f"Attendees: {row['attendees']}")
-                        st.progress(match_percent / 100)
                 
-                cal_events = []
-                for _, row in ranked_df.iterrows():
-                    cal_events.append({
-                        "title": row['Title'],
-                        "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
-                        "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
-                        "backgroundColor": "#28a745"
-                    })
-                calendar(events=cal_events, options={"initialView": "listWeek", "height": 400})
+                # --- NEW DISPLAY LOGIC ---
+                st.markdown("---")
+                
+                total_group_size = len(selected)
+
+                for idx, row in ranked_df.head(10).iterrows():
+                    # Calculate Stats
+                    match_score = row['match_score']
+                    attending_count = row['attendee_count']
+                    is_all_attending = (attending_count == total_group_size)
+                    is_high_match = (match_score > 0.6) # Threshold for "High Match"
+                    
+                    # 1. THE JACKPOT: Everyone free + High Interest
+                    if is_all_attending and is_high_match:
+                        with st.container(border=True):
+                            st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
+                            st.info("✨ Everyone is free AND it matches your interests perfectly!")
+                            
+                            c1, c2, c3 = st.columns([1, 2, 1])
+                            c1.write(f"📅 **{row['Start'].strftime('%A, %H:%M')}**")
+                            c1.caption(f"Category: {row['Category']}")
+                            
+                            c2.write(f"**Interests Matched:** {row['matched_tags']}")
+                            c2.progress(match_score, text="Interest Match Strength")
+                            
+                            c3.metric("Availability", "100%", "All available")
+                    
+                    # 2. TIME PERFECT: Everyone free (but maybe average interest)
+                    elif is_all_attending:
+                        with st.container(border=True):
+                            st.markdown(f"### ✅ **GOOD TIMING: {row['Title']}**")
+                            st.success("🕒 Everyone is free at this time.")
+                            
+                            c1, c2, c3 = st.columns([1, 2, 1])
+                            c1.write(f"📅 **{row['Start'].strftime('%A, %H:%M')}**")
+                            
+                            c2.write(f"**Interests Matched:** {row['matched_tags']}")
+                            c2.progress(match_score, text="Interest Match Strength")
+                            
+                            c3.metric("Availability", "100%", "All available")
+
+                    # 3. INTEREST PERFECT: High Interest (but not everyone free)
+                    elif is_high_match:
+                        with st.container(border=True):
+                            st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
+                            st.write(f"🤔 Only **{attending_count}/{total_group_size}** people are free, but they will love it!")
+                            
+                            c1, c2, c3 = st.columns([1, 2, 1])
+                            c1.write(f"📅 **{row['Start'].strftime('%A, %H:%M')}**")
+                            
+                            c2.write(f"**Who can go:** {row['attendees']}")
+                            c2.write(f"**Interests Matched:** {row['matched_tags']}")
+                            
+                            c3.metric("Match Score", f"{int(match_score*100)}%", "Very High")
+
+                    # 4. NORMAL: Standard suggestion
+                    else:
+                        with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
+                            st.write(f"📅 {row['Start'].strftime('%d.%m. %H:%M')} | {row['Category']}")
+                            st.write(f"Attendees: {row['attendees']}")
+                            st.caption(row['Description'])
             else:
                 st.warning("No suitable events found.")
 
@@ -163,6 +203,7 @@ elif page == "Activity Planner":
 elif page == "Group Calendar":
     st.title("🗓️ Group Calendar Overview")
     auth_result = auth.get_google_service()
+    
     if auth_result and not isinstance(auth_result, str):
         service = auth_result
         all_users_db = database.get_all_users()
@@ -170,16 +211,14 @@ elif page == "Group Calendar":
         
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
-        # Prepare lists for calendar AND visualization
         cal_events = []
-        visualization_data = [] # List of dicts for visualization.py
+        visualization_data = [] 
         
         colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
         
         for i, (user_name, events) in enumerate(user_busy_map.items()):
             color = colors[i % len(colors)]
             for event in events:
-                # 1. Format for Calendar
                 cal_events.append({
                     "title": f"{user_name}: {event.get('summary', 'Termin')}",
                     "start": event['start'].isoformat(),
@@ -188,8 +227,6 @@ elif page == "Group Calendar":
                     "borderColor": color
                 })
                 
-                # 2. Format for Visualization
-                # We explicitly add the 'person' key so visualization.py doesn't have to guess
                 visualization_data.append({
                     "summary": event.get('summary', 'Termin'),
                     "start": event['start'],
@@ -198,15 +235,9 @@ elif page == "Group Calendar":
                 })
         
         if cal_events:
-            # Show Calendar
             calendar(events=cal_events, options={"initialView": "dayGridMonth", "height": 700})
-            
             st.markdown("---")
-            
-            # Show Visualization (New Feature)
-            # This calls the function in visualization.py
             visualization.show_visualizations(visualization_data)
-            
         else:
             st.info("No events found.")
     else:
