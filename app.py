@@ -145,8 +145,15 @@ elif page == "Activity Planner":
                     match_score = row['match_score']
                     attending_count = row['attendee_count']
                     is_all_attending = (attending_count == total_group_size)
-                    is_high_match = (match_score > 0.6) # Threshold for "High Match"
+                    is_high_match = (match_score > 0.6) 
                     
+                    # Missing People Logic
+                    missing_people = []
+                    if not is_all_attending:
+                        # Wir vergleichen alle ausgewählten mit denen, die im String stehen
+                        attending_list = [x.strip() for x in row['attendees'].split(',')]
+                        missing_people = [p for p in selected if p not in attending_list]
+
                     # 1. THE JACKPOT: Everyone free + High Interest
                     if is_all_attending and is_high_match:
                         with st.container(border=True):
@@ -172,7 +179,10 @@ elif page == "Activity Planner":
                             c1.write(f"📅 **{row['Start'].strftime('%A, %H:%M')}**")
                             
                             c2.write(f"**Interests Matched:** {row['matched_tags']}")
-                            c2.progress(match_score, text="Interest Match Strength")
+                            if match_score < 0.3:
+                                c2.warning("Low interest match, but the time works for everyone!")
+                            else:
+                                c2.progress(match_score, text="Interest Match Strength")
                             
                             c3.metric("Availability", "100%", "All available")
 
@@ -180,22 +190,39 @@ elif page == "Activity Planner":
                     elif is_high_match:
                         with st.container(border=True):
                             st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
-                            st.write(f"🤔 Only **{attending_count}/{total_group_size}** people are free, but they will love it!")
+                            st.warning(f"⚠️ Only **{attending_count}/{total_group_size}** people are free, but they will love it!")
                             
                             c1, c2, c3 = st.columns([1, 2, 1])
                             c1.write(f"📅 **{row['Start'].strftime('%A, %H:%M')}**")
                             
                             c2.write(f"**Who can go:** {row['attendees']}")
-                            c2.write(f"**Interests Matched:** {row['matched_tags']}")
+                            if missing_people:
+                                c2.caption(f"Busy: {', '.join(missing_people)}")
                             
                             c3.metric("Match Score", f"{int(match_score*100)}%", "Very High")
 
-                    # 4. NORMAL: Standard suggestion
+                    # 4. NORMAL / COMPROMISE: Standard suggestion
                     else:
-                        with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
-                            st.write(f"📅 {row['Start'].strftime('%d.%m. %H:%M')} | {row['Category']}")
-                            st.write(f"Attendees: {row['attendees']}")
-                            st.caption(row['Description'])
+                        with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl) - {int(match_score*100)}% Match"):
+                            c1, c2 = st.columns([1, 1])
+                            
+                            c1.write(f"📅 **{row['Start'].strftime('%d.%m. %H:%M')}** | {row['Category']}")
+                            c1.write(f"**Attendees:** {row['attendees']}")
+                            
+                            if missing_people:
+                                c1.caption(f"❌ Missing: {', '.join(missing_people)}")
+                            
+                            # Hier zeigen wir explizit, warum es vorgeschlagen wird
+                            c2.write("**Why this option?**")
+                            if attending_count > 1:
+                                c2.info(f"It works for {attending_count} people.")
+                            elif row['matched_tags'] != "General":
+                                c2.info(f"It matches interest: '{row['matched_tags']}'")
+                            else:
+                                c2.write("It's an available option to consider.")
+                                
+                            if row['Description']:
+                                st.write(f"_{row['Description']}_")
             else:
                 st.warning("No suitable events found.")
 
