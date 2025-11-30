@@ -77,7 +77,7 @@ def show_profiles_page():
         for u in users:
             st.text(f"• {u[0]} (Interests: {u[1]})")
 
-def render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_callback, color, is_expander=False):
+def render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_callback, color, is_expander=False):
     """
     Helper function to render the content of an event card (avoids code duplication).
     """
