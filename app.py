@@ -12,27 +12,14 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
 database.init_db()
 
-# --- SESSION STATE INITIALISIERUNG ---
-# Wir brauchen einen Speicher für die ausgewählten Events
+# --- GLOBAL SESSION STATE ---
+# Initialisiere dies GANZ AM ANFANG, damit es überall verfügbar ist
 if 'selected_events' not in st.session_state:
     st.session_state.selected_events = []
 
-# --- NAVIGATION LOGIK (NEU) ---
-# Wir prüfen, ob wir von Google kommen (Code in URL) -> Dann ab zum Activity Planner
-if "nav_page" not in st.session_state:
-    st.session_state.nav_page = "Start"
-
-if st.query_params.get("code"):
-    st.session_state.nav_page = "Activity Planner"
-
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
-# Wir nutzen den 'key' Parameter, um die Auswahl mit dem Session State zu verbinden
-page = st.sidebar.radio(
-    "Go to", 
-    ["Start", "Profiles", "Activity Planner", "Group Calendar"],
-    key="nav_page"
-)
+page = st.sidebar.radio("Go to", ["Start", "Profiles", "Activity Planner", "Group Calendar"])
 
 # --- PAGE 0: START PAGE ---
 if page == "Start":
@@ -148,7 +135,7 @@ elif page == "Activity Planner":
 
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
-        # Session State
+        # Session State for Search Results
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
@@ -227,7 +214,7 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
                             
-                            # ADD BUTTON
+                            # BUTTON TO ADD TO CALENDAR
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
                                 new_event = {
                                     "title": f"🎉 {row['Title']}",
@@ -259,7 +246,6 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
                             
-                            # ADD BUTTON
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
                                 new_event = {
                                     "title": f"✅ {row['Title']}",
@@ -291,7 +277,6 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
                             
-                            # ADD BUTTON
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
                                 new_event = {
                                     "title": f"💙 {row['Title']}",
@@ -307,8 +292,10 @@ elif page == "Activity Planner":
                     else:
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
                             c1, c2, c3 = st.columns([1, 1, 1]) 
+                            
                             c1.write(f"📅 **{time_str}**")
                             c1.caption(f"Category: {row['Category']}")
+                            
                             c2.write(f"**Attendees:** {row['attendees']}")
                             if missing_people:
                                 c2.caption(f"❌ Missing: {', '.join(missing_people)}")
@@ -332,7 +319,6 @@ elif page == "Activity Planner":
                             if row['Description']:
                                 st.write(f"_{row['Description']}_")
                             
-                            # ADD BUTTON (Auch hier!)
                             if st.button(f"Add to Calendar", key=f"btn_{idx}"):
                                 new_event = {
                                     "title": f"📌 {row['Title']}",
@@ -362,7 +348,6 @@ elif page == "Group Calendar":
         
         colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
         
-        # 1. Normale Termine der User
         for i, (user_name, events) in enumerate(user_busy_map.items()):
             color = colors[i % len(colors)]
             for event in events:
@@ -381,8 +366,8 @@ elif page == "Group Calendar":
                     "person": user_name 
                 })
         
-        # 2. HIER: Die ausgewählten Events aus dem Activity Planner hinzufügen!
-        if st.session_state.selected_events:
+        # HIER: Die ausgewählten Events aus dem Activity Planner hinzufügen!
+        if 'selected_events' in st.session_state and st.session_state.selected_events:
             cal_events.extend(st.session_state.selected_events)
             st.success(f"Showing {len(st.session_state.selected_events)} selected group activities!")
             
