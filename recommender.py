@@ -81,7 +81,7 @@ def check_user_availability(event_start, event_end, user_busy_slots):
 
 def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user_prefs, min_attendees=2):
     """
-    Findet Events und berechnet Details zu Übereinstimmungen.
+    Findet Events und berechnet einen ehrlichen Gruppen-Score.
     """
     if events_df.empty:
         return pd.DataFrame()
@@ -98,36 +98,44 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
                 attendees.append(user)
         
         if len(attendees) >= min_attendees:
-            # 2. Welche Interessen passen? (Detail-Analyse)
+            # 2. Interessen-Check pro Person
+            # Wir bauen einen Text aus Titel + Kategorie + Beschreibung
+            event_text = (str(event.get('Category', '')) + " " + str(event.get('Description', '')) + " " + str(event['Title'])).lower()
+            
             attendee_prefs_list = []
             matched_tags = set()
             
-            # Event Text für einfachen Abgleich
-            event_text = (str(event.get('Category', '')) + " " + str(event.get('Description', '')) + " " + str(event['Title'])).lower()
-            
-            # WICHTIG: Wir prüfen hier auf EXAKTE Übereinstimmung der Tags
-            direct_hit = False 
+            # Zähler: Wie viele Leute finden das Event gut?
+            happy_users_count = 0
             
             for attendee in attendees:
-                # Hole Interessen String vom User (z.B. "Sport,Kultur")
                 u_prefs = all_user_prefs.get(attendee, "")
                 attendee_prefs_list.append(u_prefs)
                 
-                # Checke welche Tags zutreffen
+                user_is_happy = False
                 for pref in u_prefs.split(','):
                     clean_pref = pref.strip()
-                    # Wenn das Interesse (z.B. "Kultur") im Event-Text vorkommt
+                    # Wenn das Interesse im Event vorkommt
                     if clean_pref and clean_pref.lower() in event_text:
                         matched_tags.add(clean_pref)
-                        direct_hit = True
+                        user_is_happy = True
+                
+                if user_is_happy:
+                    happy_users_count += 1
+
+            # Berechne die Quote: Wie viel Prozent der Gruppe sind glücklich?
+            # 2 von 2 Leuten = 1.0 (100%)
+            # 1 von 2 Leuten = 0.5 (50%)
+            group_happiness_score = happy_users_count / len(attendees) if attendees else 0
 
             event_entry = event.copy()
             event_entry['attendees'] = ", ".join(attendees)
             event_entry['attendee_count'] = len(attendees)
             event_entry['group_prefs_text'] = " ".join(attendee_prefs_list)
             event_entry['matched_tags'] = ", ".join(matched_tags) if matched_tags else "General"
-            # Wir merken uns, ob es einen direkten Keyword-Treffer gab
-            event_entry['is_direct_hit'] = direct_hit 
+            
+            # Wir speichern diesen "Ehrlichen Score" ab
+            event_entry['manual_score'] = group_happiness_score
             
             results.append(event_entry)
 
@@ -136,7 +144,9 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
 
     result_df = pd.DataFrame(results)
 
-    # 3. Machine Learning Score (TF-IDF)
+    # 3. Machine Learning Score (TF-IDF) als "Feinschliff"
+    # Wir nutzen TF-IDF weiterhin, um auch unscharfe Treffer zu finden (z.B. ähnliche Wörter),
+    # aber wir priorisieren unseren harten Fakten-Check (manual_score).
     result_df['event_features'] = (
         result_df['Title'].fillna('') + " " + 
         result_df['Category'].fillna('') + " " +  
@@ -146,23 +156,27 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
     try:
         tfidf = TfidfVectorizer(stop_words='english')
         if len(result_df) < 2:
-             result_df['match_score'] = 1.0 
+             # Wenn nur 1 Event da ist, nehmen wir unseren manuellen Score direkt
+             result_df['match_score'] = result_df['manual_score']
         else:
             tfidf_matrix = tfidf.fit_transform(result_df['event_features'])
             scores = []
             for idx, row in result_df.iterrows():
+                # ML Score berechnen
                 user_vector = tfidf.transform([row['group_prefs_text']])
                 sim = cosine_similarity(user_vector, tfidf_matrix[idx])
+                ml_score = sim[0][0]
                 
-                # --- DER BOOST FIX ---
-                # Wenn wir einen direkten Treffer (is_direct_hit) hatten, 
-                # zwingen wir den Score auf 100% (1.0).
-                # Das überstimmt die mathematische Ähnlichkeit.
-                raw_score = sim[0][0]
-                if row['is_direct_hit']:
-                    final_score = 1.0
+                # --- INTELLIGENTE MISCHUNG ---
+                # Wenn wir einen klaren Keyword-Treffer haben (manual_score > 0),
+                # vertrauen wir diesem Score zu 100%.
+                # Wenn nicht (manual_score == 0), nutzen wir den ML-Score als Fallback 
+                # (vielleicht findet die KI Zusammenhänge, die wir übersehen haben).
+                
+                if row['manual_score'] > 0:
+                    final_score = row['manual_score']
                 else:
-                    final_score = raw_score
+                    final_score = ml_score
                 
                 scores.append(final_score)
                 
@@ -170,9 +184,10 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
             
     except Exception as e:
         print(f"ML Fehler: {e}")
-        result_df['match_score'] = 0.5
+        # Fallback auf unseren manuellen Score
+        result_df['match_score'] = result_df['manual_score']
 
-    # Sortieren: Zuerst Score (Qualität), dann Anzahl (Quantität)
+    # Sortieren: Erst Score, dann Anzahl
     result_df = result_df.sort_values(by=['match_score', 'attendee_count'], ascending=[False, False])
     
     return result_df
