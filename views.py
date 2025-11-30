@@ -230,7 +230,12 @@ def show_activity_planner():
                     # Extract scores safely (using .get to avoid KeyErrors)
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
-                    location = row.get('location', 'TBD') #TBD = to be determined
+                    location = row.get('location') 
+
+                    if pd.isna(raw_loc) or str(raw_loc).strip() == "":
+                        location = "TBD"
+                    else:
+                        location = str(raw_loc)
 
                     # Determine categories
                     is_avail_perfect = (avail_score >= 0.99)
@@ -291,8 +296,8 @@ def show_activity_planner():
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
                             render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#6c757d", is_expander=True)
                 
-                # --- NEU: Load More Button ---
-                # Prüfen, ob es mehr Ergebnisse gibt, als wir gerade anzeigen
+
+                # Check whether there are more results than currently displayed
                 if len(ranked_df) > current_limit:
                     col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
                     with col_b2:
