@@ -9,16 +9,17 @@ from datetime import datetime
 # --- SETUP ---
 st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
 database.init_db()
+
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
 # "Start" is now the first option (Default)
 # Translating UI to English as requested
-page = st.sidebar.radio("Go to", ["Start", "Profiles", "Activity Planner", "Group Calendar"])
+page = st.sidebar.radio("Go to", ["Start", "Home & Profile", "Activity Planner", "Group Calendar"])
 
 # --- PAGE 0: START PAGE (NEW) ---
 if page == "Start":
     # Centered Title and Header for better aesthetics
-    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly! ✨</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly!</h1> ✨", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>The App to finally bring your friends together.</h3>", unsafe_allow_html=True)
     
     st.markdown("---")
@@ -30,7 +31,7 @@ if page == "Start":
         st.markdown("""
         ### How it works:
         
-        1. **👤 Create Profile** Go to *Profiles* and register yourself.
+        1. **👤 Create Profile** Go to *Home & Profile* and register yourself.
            
         2. **📅 Connect Calendar** Link your Google Calendar in the *Activity Planner*.
            
@@ -38,7 +39,7 @@ if page == "Start":
         """)
     
     with col2:
-        st.info("👈 Select 'Profiles' in the menu on the left to get started!")
+        st.info("👈 Select 'Home & Profile' in the menu on the left to get started!")
 
 # --- PAGE 1: PROFILE ---
 elif page == "Profiles":
@@ -76,7 +77,9 @@ elif page == "Profiles":
                     else:
                         st.success(f"New profile created for {name}!")
                 else: 
-                    st.error(f"Error: {operation}") st.divider()
+                    st.error(f"Error: {operation}")
+
+    st.divider()
     st.subheader("Current Users in Database")
     users = database.get_all_users()
     if not users:
@@ -125,7 +128,7 @@ elif page == "Activity Planner":
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
-        if st.button("🚀 Start Analysis") and selected:
+        if st.button("🚀 Search a matching event") and selected:
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
