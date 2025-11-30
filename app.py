@@ -16,8 +16,10 @@ database.init_db()
 if 'ranked_results' not in st.session_state:
     st.session_state.ranked_results = None
 
+if 'selected_events' not in st.session_state:
+    st.session_state.selected_events = []
+
 # --- NAVIGATION LOGIC ---
-# If returning from Google Login, jump to Activity Planner
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "Start"
 
@@ -134,7 +136,6 @@ elif page == "Activity Planner":
             selected = st.multiselect("Who is planning?", user_names, default=user_names)
         
         with col2:
-            # Week Selection
             selected_date = st.date_input("Plan for which week?", value=today)
             start_of_week = selected_date - timedelta(days=selected_date.weekday())
             end_of_week = start_of_week + timedelta(days=6)
@@ -144,12 +145,10 @@ elif page == "Activity Planner":
 
         # Analysis Button
         if st.button("🚀 Start Analysis") and selected:
-            # 1. Load Events
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
             
-            # 2. Filter by Selected Week
             if not events_df.empty:
                 events_df['Start'] = pd.to_datetime(events_df['Start'])
                 mask = (events_df['Start'].dt.date >= start_of_week) & (events_df['Start'].dt.date <= end_of_week)
@@ -157,7 +156,6 @@ elif page == "Activity Planner":
             else:
                 events_df_filtered = events_df
 
-            # 3. Calculate Recommendations
             st.session_state.ranked_results = recommender.find_best_slots_for_group(
                 events_df_filtered, 
                 user_busy_map, 
@@ -166,7 +164,6 @@ elif page == "Activity Planner":
                 min_attendees=1 
             )
 
-        # Display Results
         if st.session_state.ranked_results is not None:
             ranked_df = st.session_state.ranked_results
             
@@ -181,7 +178,6 @@ elif page == "Activity Planner":
                 total_group_size = len(selected)
 
                 for idx, row in ranked_df.head(10).iterrows():
-                    # Retrieve Scores safely
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
                     
@@ -189,7 +185,16 @@ elif page == "Activity Planner":
                     is_interest_high = (interest_score > 0.6)
                     is_interest_perfect = (interest_score >= 0.99)
                     
-                    time_str = f"{row['Start'].strftime('%A, %H:%M')} - {row['End'].strftime('%H:%M')}"
+                    # --- SCHÖNE ZEITFORMATIERUNG (Dein Wunsch) ---
+                    start_dt = row['Start']
+                    end_dt = row['End']
+                    
+                    # Wenn es am gleichen Tag ist: "Montag, 18:00 - 21:00"
+                    if start_dt.date() == end_dt.date():
+                        time_str = f"{start_dt.strftime('%A')}, {start_dt.strftime('%H:%M')} - {end_dt.strftime('%H:%M')}"
+                    else:
+                        # Wenn es über Nacht geht: "Mo, 22:00 - Di, 02:00"
+                        time_str = f"{start_dt.strftime('%a, %H:%M')} - {end_dt.strftime('%a, %H:%M')}"
 
                     attending_count = row['attendee_count']
                     missing_people = []
@@ -210,7 +215,6 @@ elif page == "Activity Planner":
                         else:
                             st.toast(f"'{r['Title']}' is already saved.")
 
-                    # --- RENDER CARD ---
                     # 1. THE JACKPOT (Gold)
                     if is_avail_perfect and is_interest_perfect:
                         with st.container(border=True):
@@ -291,7 +295,6 @@ elif page == "Activity Planner":
                             if missing_people:
                                 c2.caption(f"❌ Missing: {', '.join(missing_people)}")
                             
-                            # Scores in % (Requested Design)
                             sc1, sc2 = c3.columns(2)
                             with sc1:
                                 st.write(f"💙 **Interest**")
@@ -325,7 +328,6 @@ elif page == "Group Calendar":
         all_users_db = database.get_all_users()
         all_user_names = [u[0] for u in all_users_db]
         
-        # 1. Fetch Google Events
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         cal_events = []
@@ -333,7 +335,7 @@ elif page == "Group Calendar":
         
         colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
         
-        # Add Google Events to Calendar
+        # Add Google Events
         for i, (user_name, events) in enumerate(user_busy_map.items()):
             color = colors[i % len(colors)]
             for event in events:
@@ -352,7 +354,7 @@ elif page == "Group Calendar":
                     "person": user_name 
                 })
         
-        # 2. Fetch Saved Group Events from DB
+        # Add Saved Group Events
         saved_events = database.get_saved_events()
         if saved_events:
             cal_events.extend(saved_events)
@@ -380,20 +382,36 @@ elif page == "Group Calendar":
                     
                     c1, c2 = st.columns(2)
                     
-                    start_str = clicked_event.get('start', '').replace('T', ' ')
-                    end_str = clicked_event.get('end', '').replace('T', ' ')
+                    # WICHTIG: Hier kommt der Datumstring vom Kalender (ISO format).
+                    # Wir machen ihn schön lesbar: '2025-11-30T18:00:00' -> '18:00'
+                    raw_start = clicked_event.get('start', '')
+                    raw_end = clicked_event.get('end', '')
                     
-                    c1.write(f"**Start:** {start_str}")
-                    c1.write(f"**End:** {end_str}")
+                    try:
+                        # Versuche ISO zu parsen
+                        if "T" in raw_start:
+                            s_dt = datetime.fromisoformat(raw_start)
+                            e_dt = datetime.fromisoformat(raw_end)
+                            # Schöne Formatierung wie oben
+                            if s_dt.date() == e_dt.date():
+                                time_display = f"{s_dt.strftime('%A, %d.%m.')} | {s_dt.strftime('%H:%M')} - {e_dt.strftime('%H:%M')}"
+                            else:
+                                time_display = f"{s_dt.strftime('%a %H:%M')} - {e_dt.strftime('%a %H:%M')}"
+                        else:
+                            time_display = f"{raw_start} (All Day)"
+                    except:
+                        time_display = f"{raw_start} - {raw_end}"
+                    
+                    c1.write(f"🕒 **Time:** {time_display}")
                     
                     # Logic to identify person vs group event
                     if ":" in clicked_event['title']:
                         person = clicked_event['title'].split(":")[0]
-                        c2.write(f"**Person:** {person}")
+                        c2.write(f"👤 **Person:** {person}")
                     elif any(x in clicked_event['title'] for x in ["🎉", "✅", "💙", "📌"]):
-                         c2.write("**Type:** Saved Group Activity")
+                         c2.write("👥 **Type:** Saved Group Activity")
                     else:
-                        c2.write("**Person:** Unknown")
+                        c2.write("👤 **Person:** Unknown")
             
             st.markdown("---")
             visualization.show_visualizations(visualization_data)
