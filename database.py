@@ -146,7 +146,7 @@ def get_saved_events():
             "extendedProps": {
                 "category": row['category'],
                 "attendees": row['attendees'],
-                "match_score": row['match_score']
+                "match_score": row['match_score'],
                 "location": row['location']
             }
         }
