@@ -7,19 +7,43 @@ from streamlit_calendar import calendar
 from datetime import datetime
 
 # --- SETUP ---
-st.set_page_config(page_title="HSG Planner", layout="wide")
+st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
 database.init_db()
 
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home & Profil", "Activity Planner", "Gruppen-Kalender"])
+# "Start" ist jetzt die erste Option (Standard)
+page = st.sidebar.radio("Go to", ["Start", "Home & Profil", "Activity Planner", "Gruppen-Kalender"])
+
+# --- SEITE 0: STARTSEITE (NEU) ---
+if page == "Start":
+    st.title("✨ Welcome to Meetly!")
+    st.header("The App to finally bring your friends together.")
+    
+    st.markdown("---")
+    
+    # Eine kleine Anleitung, damit die App "rund" wirkt
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        ### So funktioniert's:
+        
+        1. **👤 Profil erstellen** Gehe zu *Home & Profil* und trage dich ein.
+           
+        2. **📅 Kalender verbinden** Verknüpfe deinen Google Kalender im *Activity Planner*.
+           
+        3. **🚀 Planen** Lass Meetly die perfekten Termine und Aktivitäten für deine Gruppe finden!
+        """)
+    
+    with col2:
+        st.info("👈 Wähle im Menü links 'Home & Profil' um zu starten!")
 
 # --- SEITE 1: PROFIL ---
-if page == "Home & Profil":
+elif page == "Home & Profil":
     st.title("👤 User Profil & Setup")
     st.write("Erstelle hier Profile für dich und deine Freunde.")
     
-    # clear_on_submit=True sorgt dafür, dass die Felder nach dem Speichern leer werden
     with st.form("profile_form", clear_on_submit=True):
         st.info("💡 Tipp: Nutze unterschiedliche E-Mails für unterschiedliche Personen.")
         # Markierung als Pflichtfeld im Label
@@ -39,13 +63,12 @@ if page == "Home & Profil":
         submitted = st.form_submit_button("Profil Speichern")
         
         if submitted:
-            # --- VALIDIERUNG: Sind die Pflichtfelder da? ---
+            # --- VALIDIERUNG ---
             if not name.strip():
                 st.error("❌ Bitte gib einen Namen ein.")
             elif not email.strip():
                 st.error("❌ Bitte gib eine E-Mail-Adresse ein.")
             else:
-                # Alles ok -> Speichern
                 success, operation = database.add_user(name, email, prefs)
                 if success:
                     if operation == "updated":
@@ -100,17 +123,16 @@ elif page == "Activity Planner":
         selected = st.multiselect("Wer soll geplant werden?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
-        # --- FIX: Session State initialisieren ---
+        # --- SESSION STATE ---
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
-        # Wenn Button geklickt wird -> Berechnen und in Session State SPEICHERN
         if st.button("🚀 Analyse Starten") and selected:
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
 
-            # Ergebnis merken!
+            # Speichern im Session State
             st.session_state.ranked_results = recommender.find_best_slots_for_group(
                 events_df, 
                 user_busy_map, 
@@ -119,14 +141,13 @@ elif page == "Activity Planner":
                 min_attendees=2
             )
 
-        # --- ANZEIGE: Immer das anzeigen, was im Speicher ist ---
+        # --- ANZEIGE ---
         if st.session_state.ranked_results is not None:
             ranked_df = st.session_state.ranked_results
             
             if not ranked_df.empty:
                 st.subheader("🎯 Top Vorschläge")
                 
-                # Option zum Zurücksetzen
                 if st.button("Ergebnisse löschen"):
                     st.session_state.ranked_results = None
                     st.rerun()
