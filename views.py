@@ -86,6 +86,7 @@ def render_card_content(row, time_str, interest_score, avail_score, missing_peop
     
     # Column 1: Time
     c1.write(f"📅 **{time_str}**")
+    c1.write(f"📍 **{location}**")
     c1.caption(f"Category: {row['Category']}")
     
     # Column 2: Attendees
@@ -221,12 +222,16 @@ def show_activity_planner():
                 current_limit = st.session_state.results_limit
                 visible_df = ranked_df.head(current_limit)
 
-                # Iterate through results (with limit)
+               # Iterate through results (with limit)
                 for idx, row in visible_df.iterrows():
                     # Extract scores safely (using .get to avoid KeyErrors)
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
                     
+                    # --- NEU: Ort auslesen ---
+                    # HINWEIS: Stelle sicher, dass deine CSV/Excel eine Spalte namens 'Location' hat.
+                    location = row.get('Location', 'TBD') 
+
                     # Determine categories
                     is_avail_perfect = (avail_score >= 0.99)
                     is_interest_high = (interest_score > 0.6)
@@ -265,26 +270,26 @@ def show_activity_planner():
                         with st.container(border=True):
                             st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
                             st.info("✨ Everyone is free AND it matches everyone's interests perfectly!")
-                            render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#FFD700")
+                            render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#FFD700")
                     
                     # 2. TIME PERFECT (Green)
                     elif is_avail_perfect:
                         with st.container(border=True):
                             st.markdown(f"### ✅ **GOOD TIMING: {row['Title']}**")
                             st.success("🕒 Everyone is free at this time.")
-                            render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#28a745")
+                            render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#28a745")
 
                     # 3. INTEREST PERFECT (Blue)
                     elif is_interest_high:
                         with st.container(border=True):
                             st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
                             st.warning(f"⚠️ Only {attending_count}/{total_group_size} people are free, but they will love it!")
-                            render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#1E90FF")
+                            render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#1E90FF")
 
                     # 4. NORMAL (Grey)
                     else:
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
-                            render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#6c757d", is_expander=True)
+                            render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#6c757d", is_expander=True)
                 
                 # --- NEU: Load More Button ---
                 # Prüfen, ob es mehr Ergebnisse gibt, als wir gerade anzeigen
