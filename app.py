@@ -12,6 +12,11 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
 database.init_db()
 
+# --- SESSION STATE INITIALISIERUNG ---
+# Wir brauchen einen Speicher für die ausgewählten Events
+if 'selected_events' not in st.session_state:
+    st.session_state.selected_events = []
+
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Start", "Profiles", "Activity Planner", "Group Calendar"])
@@ -208,6 +213,18 @@ elif page == "Activity Planner":
                             with sc2:
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
+                            
+                            # ADD BUTTON
+                            if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
+                                new_event = {
+                                    "title": f"🎉 {row['Title']}",
+                                    "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "backgroundColor": "#FFD700", # Gold
+                                    "borderColor": "#FFD700"
+                                }
+                                st.session_state.selected_events.append(new_event)
+                                st.toast(f"Added {row['Title']} to Group Calendar!")
                     
                     # 2. TIME PERFECT (Grün)
                     elif is_avail_perfect:
@@ -228,6 +245,18 @@ elif page == "Activity Planner":
                             with sc2:
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
+                            
+                            # ADD BUTTON
+                            if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
+                                new_event = {
+                                    "title": f"✅ {row['Title']}",
+                                    "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "backgroundColor": "#28a745", # Grün
+                                    "borderColor": "#28a745"
+                                }
+                                st.session_state.selected_events.append(new_event)
+                                st.toast(f"Added {row['Title']} to Group Calendar!")
 
                     # 3. INTEREST PERFECT (Blau)
                     elif is_interest_high:
@@ -248,6 +277,18 @@ elif page == "Activity Planner":
                             with sc2:
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
+                            
+                            # ADD BUTTON
+                            if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
+                                new_event = {
+                                    "title": f"💙 {row['Title']}",
+                                    "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "backgroundColor": "#1E90FF", # Blau
+                                    "borderColor": "#1E90FF"
+                                }
+                                st.session_state.selected_events.append(new_event)
+                                st.toast(f"Added {row['Title']} to Group Calendar!")
 
                     # 4. NORMAL
                     else:
@@ -277,6 +318,18 @@ elif page == "Activity Planner":
                                 
                             if row['Description']:
                                 st.write(f"_{row['Description']}_")
+                            
+                            # ADD BUTTON (Auch hier!)
+                            if st.button(f"Add to Calendar", key=f"btn_{idx}"):
+                                new_event = {
+                                    "title": f"📌 {row['Title']}",
+                                    "start": row['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "end": row['End'].strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "backgroundColor": "#6c757d", # Grau
+                                    "borderColor": "#6c757d"
+                                }
+                                st.session_state.selected_events.append(new_event)
+                                st.toast(f"Added {row['Title']} to Group Calendar!")
             else:
                 st.warning("No suitable events found.")
 
@@ -296,6 +349,7 @@ elif page == "Group Calendar":
         
         colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
         
+        # 1. Normale Termine der User
         for i, (user_name, events) in enumerate(user_busy_map.items()):
             color = colors[i % len(colors)]
             for event in events:
@@ -313,6 +367,15 @@ elif page == "Group Calendar":
                     "end": event['end'],
                     "person": user_name 
                 })
+        
+        # 2. HIER: Die ausgewählten Events aus dem Activity Planner hinzufügen!
+        if st.session_state.selected_events:
+            cal_events.extend(st.session_state.selected_events)
+            st.success(f"Showing {len(st.session_state.selected_events)} selected group activities!")
+            
+            if st.button("Clear selected activities"):
+                st.session_state.selected_events = []
+                st.rerun()
         
         if cal_events:
             calendar(events=cal_events, options={"initialView": "dayGridMonth", "height": 700})
