@@ -163,7 +163,6 @@ elif page == "Activity Planner":
 elif page == "Group Calendar":
     st.title("🗓️ Group Calendar Overview")
     auth_result = auth.get_google_service()
-    
     if auth_result and not isinstance(auth_result, str):
         service = auth_result
         all_users_db = database.get_all_users()
@@ -207,6 +206,7 @@ elif page == "Group Calendar":
             # Show Visualization (New Feature)
             # This calls the function in visualization.py
             visualization.show_visualizations(visualization_data)
+            st.caption("See how busy you are this week and who among you is the busiest.") # DEIN NEUER UNTERTITEL
             
         else:
             st.info("No events found.")
