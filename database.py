@@ -1,4 +1,5 @@
 import sqlite3
+import os
 
 # Define the path to our database file
 DB_PATH = "user_database.sqlite"
@@ -9,7 +10,6 @@ def init_db():
     c = conn.cursor()
     
     # 1. User Table
-    # Stores user profiles including name, email (used as a unique ID), and their preferences.
     c.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +20,7 @@ def init_db():
     """)
     
     # 2. Saved Events Table (WITH DETAILS)
-    # Stores group events that users have selected to save to the shared calendar.
+    # KORREKTUR: Komma vor 'location TEXT' hinzugefügt
     c.execute("""
         CREATE TABLE IF NOT EXISTS saved_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,7 @@ def init_db():
             color TEXT,
             category TEXT,
             attendees TEXT,
-            match_score REAL
+            match_score REAL,
             location TEXT
         )
     """)
@@ -41,21 +41,17 @@ def init_db():
 def add_user(name, email, preferences):
     """
     Adds a new user or updates an existing one based on the email address.
-    Returns: (Success Boolean, Operation Message)
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Convert the list of preferences into a single comma-separated string for storage
     prefs_str = ",".join(preferences) if isinstance(preferences, list) else preferences
     
     try:
-        # Check if the email already exists to decide whether to INSERT or UPDATE
         if email and email.strip() != "":
             c.execute("SELECT id FROM users WHERE email = ?", (email,))
             existing = c.fetchone()
             
             if existing:
-                # Update existing user
                 c.execute("""
                     UPDATE users 
                     SET name = ?, preferences = ? 
@@ -63,15 +59,12 @@ def add_user(name, email, preferences):
                 """, (name, prefs_str, email))
                 operation = "updated"
             else:
-                # Insert new user
                 c.execute("""
                     INSERT INTO users (name, email, preferences)
                     VALUES (?, ?, ?)
                 """, (name, email, prefs_str))
                 operation = "created"
         else:
-            # Fallback: If no email is provided, create a dummy email to satisfy the UNIQUE constraint
-            # (Note: In our current UI, email is required, so this is just a safety net)
             import uuid
             dummy_email = f"no_email_{uuid.uuid4()}@local"
             c.execute("""
@@ -89,7 +82,6 @@ def add_user(name, email, preferences):
         conn.close()
 
 def get_all_users():
-    """Fetches all users from the database to display them in the UI."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT name, preferences FROM users")
@@ -106,37 +98,41 @@ def add_saved_event(title, start, end, color, category, attendees, match_score, 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
-        # Prevent duplicates: Check if an event with the same title and start time already exists
+        # Prevent duplicates
         c.execute("SELECT id FROM saved_events WHERE title = ? AND start_time = ?", (title, start))
         if c.fetchone():
-            return False # Event already exists, do nothing
+            return False 
             
+        # KORREKTUR: Hier waren nur 7 Fragezeichen, es müssen aber 8 sein!
         c.execute("""
             INSERT INTO saved_events (title, start_time, end_time, color, category, attendees, match_score, location)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (title, start, end, color, category, attendees, match_score, location))
+        
         conn.commit()
         return True
     except Exception as e:
-        print(f"DB Error: {e}")
+        print(f"DB Error: {e}") # Diesen Fehler hast du vorher nicht gesehen
         return False
     finally:
         conn.close()
 
 def get_saved_events():
-    """
-    Retrieves all saved events and formats them for the frontend calendar component.
-    """
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row # Allows us to access columns by name (e.g., row['title'])
+    conn.row_factory = sqlite3.Row 
     c = conn.cursor()
     
-    # Fetch all columns
-    c.execute("SELECT * FROM saved_events")
+    # Fehler abfangen, falls Tabelle noch alt ist
+    try:
+        c.execute("SELECT * FROM saved_events")
+    except Exception:
+        return []
+
     rows = []
     for row in c.fetchall():
-        # Build a dictionary formatted for the FullCalendar component
-        # We store additional details (category, attendees, score) in 'extendedProps'
+        # Fallback, falls 'location' in einer alten Zeile leer ist
+        loc = row['location'] if 'location' in row.keys() else "TBD"
+
         event_dict = {
             "title": row['title'],
             "start": row['start_time'],
@@ -147,7 +143,7 @@ def get_saved_events():
                 "category": row['category'],
                 "attendees": row['attendees'],
                 "match_score": row['match_score'],
-                "location": row['location']
+                "location": loc
             }
         }
         rows.append(event_dict)
@@ -156,13 +152,9 @@ def get_saved_events():
     return rows
 
 def clear_saved_events():
-    """Deletes all saved events from the database (Reset functionality)."""
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM saved_events")
+    c.execute("DROP TABLE IF EXISTS saved_events") # Besser DROP nutzen um Struktur neu zu laden
     conn.commit()
     conn.close()
-    c = conn.cursor()
-    c.execute("DELETE FROM saved_events")
-    conn.commit()
-    conn.close()
+    init_db()
