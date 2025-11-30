@@ -256,7 +256,7 @@ def show_activity_planner():
                             col,
                             r['Category'],
                             r['attendees'],
-                            float(score)
+                            float(score),
                             loc
                         )
                         if saved:
