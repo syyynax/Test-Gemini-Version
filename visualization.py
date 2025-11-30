@@ -6,11 +6,12 @@ import seaborn as sns
 # Set style for charts
 sns.set_theme(style="darkgrid")
 
-def events_to_df(google_events):
+def events_to_df(events_list):
     """
     Converts a list of event dictionaries into a pandas DataFrame.
+    Expects keys: 'start', 'end', 'summary', 'person' (optional)
     """
-    df = pd.DataFrame(google_events)
+    df = pd.DataFrame(events_list)
 
     if df.empty:
         return pd.DataFrame()
@@ -25,7 +26,7 @@ def events_to_df(google_events):
     if "title" not in df.columns and "summary" in df.columns:
         df["title"] = df["summary"]
     
-    # IMPROVEMENT: Only try to extract person from title if it's not already provided
+    # If person is not explicitly given, try to extract from title (e.g. "Mia: Zahnarzt")
     if "person" not in df.columns:
         df["person"] = df["title"].apply(lambda x: x.split(":")[0] if isinstance(x, str) else "Unknown")
         
@@ -43,12 +44,13 @@ def plot_events_per_person(df):
     counts = df["person"].value_counts()
 
     fig, ax = plt.subplots(figsize=(8, 4))
+    # Using seaborn for nicer colors
     sns.barplot(x=counts.index, y=counts.values, ax=ax, palette="viridis")
 
     ax.set_title("Number of Events by Person")
-    ax.set_ylabel("Count")
+    ax.set_ylabel("Events")
     ax.set_xlabel("Person")
-    plt.xticks(rotation=45) # Rotate names if they are long
+    plt.xticks(rotation=45)
 
     st.pyplot(fig)
 
@@ -65,20 +67,20 @@ def plot_events_per_weekday(df):
     fig, ax = plt.subplots(figsize=(8, 4))
     sns.lineplot(x=weekday_counts.index, y=weekday_counts.values, marker="o", ax=ax, sort=False)
 
-    ax.set_title("Busy Times: Events by Weekday")
-    ax.set_ylabel("Total Events")
-    ax.set_xlabel("Day of Week")
+    ax.set_title("Number of Events by Weekday")
+    ax.set_ylabel("Events")
+    ax.set_xlabel("Weekday")
     
     st.pyplot(fig)
 
-def show_visualizations(google_events):
+def show_visualizations(events_list):
     """
     Main function to render the visualization section.
     """
     st.markdown("### 📊 Data Visualization")
-    st.caption("See how busy you are this week and who among you is the busiest.") # DEIN NEUER UNTERTITEL
+    st.caption("See how busy you are this week and who among you is the busiest.")
     
-    df = events_to_df(google_events)
+    df = events_to_df(events_list)
 
     if df.empty:
         st.info("No data available to visualize.")
@@ -100,14 +102,13 @@ def show_visualizations(google_events):
     if isinstance(dates, tuple) and len(dates) == 2:
         start_date, end_date = dates
     else:
-        # If user is still selecting
-        return
+        return # Waiting for second date
 
     if start_date > end_date:
         st.error("Start date must be before end date.")
         return
 
-    # Initialize Session State for the chart visibility
+    # Initialize Session State for chart visibility
     if "show_plot" not in st.session_state:
         st.session_state.show_plot = False
 
