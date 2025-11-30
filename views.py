@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from streamlit_calendar import calendar
 
-# Import our own modules
+# Import your modules
 import database
 import auth
 import google_service
@@ -12,17 +12,12 @@ import visualization
 
 def show_start_page():
     """
-    Renders the landing page of the application.
-    
-    Why: This serves as the entry point for users, explaining what the app does
-    and guiding them on how to get started. It improves the user experience (UX).
+    Renders the Start Page with a welcome message and a short guide.
     """
-    # We use HTML inside markdown to center the text for better visual appeal.
-    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly! ✨</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>✨ Welcome to Meetly!</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>The App to finally bring your friends together.</h3>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # We use columns to create a two-sided layout (Text on left, Info box on right).
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
@@ -36,46 +31,34 @@ def show_start_page():
 
 def show_profiles_page():
     """
-    Renders the user registration page.
-    
-    Why: We need to collect user preferences (interests) and identities (names/emails)
-    to make personalized recommendations later.
+    Renders the Profile setup page where users can register and set preferences.
     """
     st.title("👤 User Profile & Setup")
     st.write("Create profiles for you and your friends here.")
     
-    # We use 'clear_on_submit=True' so the form resets after saving.
-    # This allows users to quickly add multiple friends one after another.
     with st.form("profile_form", clear_on_submit=True):
         st.info("💡 Tip: Use different emails for different people.")
-        
-        # Required fields marked with *
         name = st.text_input("Your Name *")
         email = st.text_input("Email (serves as ID) *")
         
         st.write("Your Interests:")
         c1, c2, c3 = st.columns(3)
         prefs = []
-        
-        # Collecting preferences using checkboxes.
-        # Note: The values appended (e.g., "Kultur") match the categories in our events database.
         if c1.checkbox("Sport"): prefs.append("Sport")
-        if c2.checkbox("Culture"): prefs.append("Cultur")
+        if c2.checkbox("Culture"): prefs.append("Kultur")
         if c3.checkbox("Party"): prefs.append("Party")
-        if c1.checkbox("Food"): prefs.append("Food")
-        if c2.checkbox("Music"): prefs.append("Music")
+        if c1.checkbox("Food"): prefs.append("Essen")
+        if c2.checkbox("Education"): prefs.append("Education")
         if c3.checkbox("Outdoor"): prefs.append("Outdoor")
         
         submitted = st.form_submit_button("Save Profile")
         
         if submitted:
-            # Validation: Ensure required fields are not empty
             if not name.strip():
                 st.error("❌ Please enter a name.")
             elif not email.strip():
                 st.error("❌ Please enter an email address.")
             else:
-                # Save to database
                 success, operation = database.add_user(name, email, prefs)
                 if success:
                     if operation == "updated":
@@ -86,8 +69,6 @@ def show_profiles_page():
                     st.error(f"Error: {operation}")
 
     st.divider()
-    
-    # Display existing users so the user knows who is already in the system.
     st.subheader("Current Users in Database")
     users = database.get_all_users()
     if not users:
@@ -98,21 +79,17 @@ def show_profiles_page():
 
 def render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_callback, color, is_expander=False):
     """
-    Helper function to render a single event suggestion card.
-    
-    Why: We display suggestions in 4 different categories (Gold, Green, Blue, Grey).
-    To avoid writing the same UI code 4 times, we put the common layout logic here.
+    Helper function to render the content of an event card (avoids code duplication).
     """
-    # Create a 3-column layout for the card content
+    # --- LAYOUT ADJUSTMENT ---
     c1, c2, c3 = st.columns([1, 2, 1.5])
     
-    # Column 1: Time and Category
+    # Column 1: Time
     c1.write(f"📅 **{time_str}**")
     c1.caption(f"Category: {row['Category']}")
     
-    # Column 2: Attendees and matched interests
+    # Column 2: Attendees
     c2.write(f"**Interests Matched:** {row['matched_tags']}")
-    
     if missing_people:
         c2.caption(f"❌ Missing: {', '.join(missing_people)}")
     
@@ -125,7 +102,7 @@ def render_card_content(row, time_str, interest_score, avail_score, missing_peop
         st.write(f"🕒 **Availability**")
         st.write(f"**{int(avail_score*100)}%**")
     
-    # Additional information (only shown for 'Normal' category expanders)
+    # Extra text for normal category
     if is_expander:
         st.write("**Why this option?**")
         if row['attendee_count'] > 1:
@@ -134,12 +111,10 @@ def render_card_content(row, time_str, interest_score, avail_score, missing_peop
             st.info(f"It matches interest: '{row['matched_tags']}'")
         else:
             st.write("It's an available option to consider.")
-        
         if row['Description']:
             st.write(f"_{row['Description']}_")
 
     # The "Add to Calendar" button
-    # We use 'key=f"btn_{idx}"' to ensure each button has a unique ID.
     if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
         save_callback(row, color, interest_score)
 
@@ -149,6 +124,10 @@ def show_activity_planner():
     Here users connect their calendar, select participants, and run the analysis.
     """
     st.title("📅 Smart Group Planner")
+    
+    # --- NEU: State für "Load More" Logik ---
+    if 'results_limit' not in st.session_state:
+        st.session_state.results_limit = 10
     
     # 1. Authentication
     auth_result = auth.get_google_service()
@@ -198,7 +177,10 @@ def show_activity_planner():
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
         # 4. Run Analysis
-        if st.button("🚀 Search Events") and selected:
+        if st.button("🚀 Start Analysis") and selected:
+            # NEU: Limit zurücksetzen bei neuer Suche
+            st.session_state.results_limit = 10
+            
             # Load local events database
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
@@ -226,7 +208,7 @@ def show_activity_planner():
             ranked_df = st.session_state.ranked_results
             
             if not ranked_df.empty:
-                st.subheader("🎯 Event Suggestions")
+                st.subheader("🎯 Top Suggestions")
                 if st.button("Clear Results"):
                     st.session_state.ranked_results = None
                     st.rerun()
@@ -235,8 +217,12 @@ def show_activity_planner():
                 
                 total_group_size = len(selected)
 
-                # Iterate through top 10 results
-                for idx, row in ranked_df.head(10).iterrows():
+                # --- NEU: Wir nehmen nur so viele, wie im Limit stehen ---
+                current_limit = st.session_state.results_limit
+                visible_df = ranked_df.head(current_limit)
+
+                # Iterate through results (with limit)
+                for idx, row in visible_df.iterrows():
                     # Extract scores safely (using .get to avoid KeyErrors)
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
@@ -299,6 +285,16 @@ def show_activity_planner():
                     else:
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
                             render_card_content(row, time_str, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#6c757d", is_expander=True)
+                
+                # --- NEU: Load More Button ---
+                # Prüfen, ob es mehr Ergebnisse gibt, als wir gerade anzeigen
+                if len(ranked_df) > current_limit:
+                    col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
+                    with col_b2:
+                        if st.button("👇 Show more events", type="primary", use_container_width=True):
+                            st.session_state.results_limit += 10
+                            st.rerun()
+
             else:
                 st.warning("No suitable events found.")
 
