@@ -16,9 +16,6 @@ database.init_db()
 if 'ranked_results' not in st.session_state:
     st.session_state.ranked_results = None
 
-if 'selected_events' not in st.session_state:
-    st.session_state.selected_events = []
-
 # --- NAVIGATION LOGIC ---
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "Start"
@@ -145,10 +142,12 @@ elif page == "Activity Planner":
 
         # Analysis Button
         if st.button("🚀 Start Analysis") and selected:
+            # 1. Load Events
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
             
+            # 2. Filter by Selected Week
             if not events_df.empty:
                 events_df['Start'] = pd.to_datetime(events_df['Start'])
                 mask = (events_df['Start'].dt.date >= start_of_week) & (events_df['Start'].dt.date <= end_of_week)
@@ -156,6 +155,7 @@ elif page == "Activity Planner":
             else:
                 events_df_filtered = events_df
 
+            # 3. Calculate Recommendations
             st.session_state.ranked_results = recommender.find_best_slots_for_group(
                 events_df_filtered, 
                 user_busy_map, 
@@ -164,6 +164,7 @@ elif page == "Activity Planner":
                 min_attendees=1 
             )
 
+        # Display Results
         if st.session_state.ranked_results is not None:
             ranked_df = st.session_state.ranked_results
             
@@ -178,6 +179,7 @@ elif page == "Activity Planner":
                 total_group_size = len(selected)
 
                 for idx, row in ranked_df.head(10).iterrows():
+                    # Retrieve Scores safely
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
                     
@@ -185,16 +187,7 @@ elif page == "Activity Planner":
                     is_interest_high = (interest_score > 0.6)
                     is_interest_perfect = (interest_score >= 0.99)
                     
-                    # --- SCHÖNE ZEITFORMATIERUNG (Dein Wunsch) ---
-                    start_dt = row['Start']
-                    end_dt = row['End']
-                    
-                    # Wenn es am gleichen Tag ist: "Montag, 18:00 - 21:00"
-                    if start_dt.date() == end_dt.date():
-                        time_str = f"{start_dt.strftime('%A')}, {start_dt.strftime('%H:%M')} - {end_dt.strftime('%H:%M')}"
-                    else:
-                        # Wenn es über Nacht geht: "Mo, 22:00 - Di, 02:00"
-                        time_str = f"{start_dt.strftime('%a, %H:%M')} - {end_dt.strftime('%a, %H:%M')}"
+                    time_str = f"{row['Start'].strftime('%A, %H:%M')} - {row['End'].strftime('%H:%M')}"
 
                     attending_count = row['attendee_count']
                     missing_people = []
@@ -202,13 +195,16 @@ elif page == "Activity Planner":
                         attending_list = [x.strip() for x in row['attendees'].split(',')]
                         missing_people = [p for p in selected if p not in attending_list]
 
-                    # Helper to save to DB
-                    def save_to_db_callback(r, col):
+                    # Helper to save to DB with DETAILS
+                    def save_to_db_callback(r, col, score):
                         saved = database.add_saved_event(
                             f"{r['Title']}",
                             r['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
                             r['End'].strftime("%Y-%m-%dT%H:%M:%S"),
-                            col
+                            col,
+                            r['Category'],      # Neue Info
+                            r['attendees'],     # Neue Info
+                            float(score)        # Neue Info (Score als Zahl)
                         )
                         if saved:
                             st.toast(f"Saved '{r['Title']}' permanently to Calendar!")
@@ -235,7 +231,7 @@ elif page == "Activity Planner":
                                 st.write(f"**{int(avail_score*100)}%**")
                             
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
-                                save_to_db_callback(row, "#FFD700")
+                                save_to_db_callback(row, "#FFD700", interest_score)
                     
                     # 2. TIME PERFECT (Grün)
                     elif is_avail_perfect:
@@ -258,7 +254,7 @@ elif page == "Activity Planner":
                                 st.write(f"**{int(avail_score*100)}%**")
                             
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
-                                save_to_db_callback(row, "#28a745")
+                                save_to_db_callback(row, "#28a745", interest_score)
 
                     # 3. INTEREST PERFECT (Blau)
                     elif is_interest_high:
@@ -281,7 +277,7 @@ elif page == "Activity Planner":
                                 st.write(f"**{int(avail_score*100)}%**")
                             
                             if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
-                                save_to_db_callback(row, "#1E90FF")
+                                save_to_db_callback(row, "#1E90FF", interest_score)
 
                     # 4. NORMAL
                     else:
@@ -315,7 +311,7 @@ elif page == "Activity Planner":
                                 st.write(f"_{row['Description']}_")
                             
                             if st.button(f"Add to Calendar", key=f"btn_{idx}"):
-                                save_to_db_callback(row, "#6c757d")
+                                save_to_db_callback(row, "#6c757d", interest_score)
             else:
                 st.warning("No suitable events found.")
 
@@ -344,7 +340,9 @@ elif page == "Group Calendar":
                     "start": event['start'].isoformat(),
                     "end": event['end'].isoformat(),
                     "backgroundColor": color,
-                    "borderColor": color
+                    "borderColor": color,
+                    # Auch hier extendedProps hinzufügen, damit das UI nicht crasht
+                    "extendedProps": {"category": "Private", "attendees": user_name, "type": "google"}
                 })
                 
                 visualization_data.append({
@@ -375,24 +373,22 @@ elif page == "Group Calendar":
             # --- HANDLE EVENT CLICK ---
             if calendar_return and "eventClick" in calendar_return:
                 clicked_event = calendar_return["eventClick"]["event"]
+                props = clicked_event.get("extendedProps", {})
                 
                 st.markdown("### 📌 Event Details")
                 with st.container(border=True):
+                    # Titel
                     st.markdown(f"## {clicked_event['title']}")
                     
                     c1, c2 = st.columns(2)
                     
-                    # WICHTIG: Hier kommt der Datumstring vom Kalender (ISO format).
-                    # Wir machen ihn schön lesbar: '2025-11-30T18:00:00' -> '18:00'
+                    # Zeit formatieren
                     raw_start = clicked_event.get('start', '')
                     raw_end = clicked_event.get('end', '')
-                    
                     try:
-                        # Versuche ISO zu parsen
                         if "T" in raw_start:
                             s_dt = datetime.fromisoformat(raw_start)
                             e_dt = datetime.fromisoformat(raw_end)
-                            # Schöne Formatierung wie oben
                             if s_dt.date() == e_dt.date():
                                 time_display = f"{s_dt.strftime('%A, %d.%m.')} | {s_dt.strftime('%H:%M')} - {e_dt.strftime('%H:%M')}"
                             else:
@@ -404,14 +400,27 @@ elif page == "Group Calendar":
                     
                     c1.write(f"🕒 **Time:** {time_display}")
                     
-                    # Logic to identify person vs group event
-                    if ":" in clicked_event['title']:
-                        person = clicked_event['title'].split(":")[0]
-                        c2.write(f"👤 **Person:** {person}")
-                    elif any(x in clicked_event['title'] for x in ["🎉", "✅", "💙", "📌"]):
-                         c2.write("👥 **Type:** Saved Group Activity")
+                    # --- UNTERSCHEIDUNG GOOGLE vs. GRUPPEN-EVENT ---
+                    
+                    # Fall A: Unser gespeichertes Gruppen-Event (hat extendedProps)
+                    if "category" in props and props.get("type") != "google":
+                        c1.info(f"🏷️ **Category:** {props.get('category', 'General')}")
+                        c2.write(f"👥 **Attendees:** {props.get('attendees', 'Unknown')}")
+                        
+                        # Match Score anzeigen
+                        score_val = props.get('match_score')
+                        if score_val is not None:
+                            c2.write(f"💙 **Interest Score:** {int(float(score_val)*100)}%")
+                    
+                    # Fall B: Google Event
                     else:
-                        c2.write("👤 **Person:** Unknown")
+                        # Versuchen wir den Namen aus dem Titel zu raten
+                        title = clicked_event['title']
+                        if ":" in title:
+                            person = title.split(":")[0]
+                            c2.write(f"👤 **Person:** {person}")
+                        else:
+                            c2.write("👤 **Type:** Private Calendar Entry")
             
             st.markdown("---")
             visualization.show_visualizations(visualization_data)
