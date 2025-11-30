@@ -1,12 +1,12 @@
 import streamlit as st
-import pandas as pd
+import panda as pd
 import database
 import auth
 import google_service
 import recommender
 import visualization
 from streamlit_calendar import calendar
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- SETUP ---
 st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
@@ -110,8 +110,23 @@ elif page == "Activity Planner":
     if not all_users_data:
         st.warning("Please create profiles first.")
     else:
-        user_names = [u[0] for u in all_users_data]
-        selected = st.multiselect("Who is planning?", user_names, default=user_names)
+        # Hier können wir die Woche auswählen
+        today = datetime.now().date()
+        week_start = today - timedelta(days=today.weekday()) # Start der aktuellen Woche (Montag)
+        week_end = week_start + timedelta(days=6) # Ende der aktuellen Woche (Sonntag)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            user_names = [u[0] for u in all_users_data]
+            selected = st.multiselect("Who is planning?", user_names, default=user_names)
+        with col2:
+            # Date Input für die Wochenauswahl
+            selected_date = st.date_input("Select a week to plan for", value=today)
+            # Berechne den Start und das Ende der ausgewählten Woche
+            selected_week_start = selected_date - timedelta(days=selected_date.weekday())
+            selected_week_end = selected_week_start + timedelta(days=6)
+            st.caption(f"Planning for week: {selected_week_start.strftime('%d.%m.%Y')} - {selected_week_end.strftime('%d.%m.%Y')}")
+
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
         # Session State
@@ -122,9 +137,21 @@ elif page == "Activity Planner":
             events_df = recommender.load_local_events("events.csv") 
             if events_df.empty:
                  events_df = recommender.load_local_events("events.xlsx")
+            
+            # Filtere Events basierend auf der ausgewählten Woche
+            # Wir nehmen nur Events, die in der ausgewählten Woche STARTEN
+            if not events_df.empty:
+                # Stelle sicher, dass 'Start' ein datetime-Objekt ist (sollte es schon sein, aber sicher ist sicher)
+                events_df['Start'] = pd.to_datetime(events_df['Start'])
+                
+                # Filter-Maske erstellen
+                mask = (events_df['Start'].dt.date >= selected_week_start) & (events_df['Start'].dt.date <= selected_week_end)
+                events_df_filtered = events_df.loc[mask].copy() # Kopie erstellen, um Warnungen zu vermeiden
+            else:
+                events_df_filtered = events_df # Leeres DataFrame
 
             st.session_state.ranked_results = recommender.find_best_slots_for_group(
-                events_df, 
+                events_df_filtered, 
                 user_busy_map, 
                 selected, 
                 user_prefs_dict,
@@ -145,9 +172,12 @@ elif page == "Activity Planner":
                 total_group_size = len(selected)
 
                 for idx, row in ranked_df.head(10).iterrows():
+                    # --- FIX: Sicherer Zugriff auf Scores ---
+                    # Wir prüfen, ob die Spalte existiert. Falls nicht, nehmen wir 0 als Fallback.
                     interest_score = row.get('final_interest_score', 0)
                     avail_score = row.get('availability_score', 0)
                     
+                    # Logik für Kategorie-Bestimmung
                     is_avail_perfect = (avail_score >= 0.99)
                     is_interest_high = (interest_score > 0.6)
                     is_interest_perfect = (interest_score >= 0.99)
@@ -160,7 +190,7 @@ elif page == "Activity Planner":
                         attending_list = [x.strip() for x in row['attendees'].split(',')]
                         missing_people = [p for p in selected if p not in attending_list]
 
-                    # 1. THE JACKPOT (Gold)
+                    # 1. THE JACKPOT (Gold): 100% Zeit + 100% Interesse
                     if is_avail_perfect and is_interest_perfect:
                         with st.container(border=True):
                             st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
@@ -172,6 +202,7 @@ elif page == "Activity Planner":
                             
                             c2.write(f"**Interests Matched:** {row['matched_tags']}")
                             
+                            # NEU: Prozentangaben statt Balken
                             sc1, sc2 = c3.columns(2)
                             with sc1:
                                 st.write(f"💙 **Interest**")
@@ -180,7 +211,7 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
                     
-                    # 2. TIME PERFECT (Grün)
+                    # 2. TIME PERFECT (Grün): 100% Zeit
                     elif is_avail_perfect:
                         with st.container(border=True):
                             st.markdown(f"### ✅ **GOOD TIMING: {row['Title']}**")
@@ -193,6 +224,7 @@ elif page == "Activity Planner":
                             if interest_score < 0.3:
                                 c2.caption("Low interest match, but timing works!")
                             
+                            # NEU: Prozentangaben statt Balken
                             sc1, sc2 = c3.columns(2)
                             with sc1:
                                 st.write(f"💙 **Interest**")
@@ -201,7 +233,7 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
 
-                    # 3. INTEREST PERFECT (Blau)
+                    # 3. INTEREST PERFECT (Blau): Hohes Interesse
                     elif is_interest_high:
                         with st.container(border=True):
                             st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
@@ -214,6 +246,7 @@ elif page == "Activity Planner":
                             if missing_people:
                                 c2.caption(f"Busy: {', '.join(missing_people)}")
                             
+                            # NEU: Prozentangaben statt Balken
                             sc1, sc2 = c3.columns(2)
                             with sc1:
                                 st.write(f"💙 **Interest**")
@@ -222,18 +255,21 @@ elif page == "Activity Planner":
                                 st.write(f"🕒 **Avail.**")
                                 st.write(f"**{int(avail_score*100)}%**")
 
-                    # 4. NORMAL
+                    # 4. NORMAL / COMPROMISE
                     else:
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
                             c1, c2, c3 = st.columns([1, 1, 1]) 
                             
+                            # Spalte 1
                             c1.write(f"📅 **{time_str}**")
                             c1.caption(f"Category: {row['Category']}")
                             
+                            # Spalte 2
                             c2.write(f"**Attendees:** {row['attendees']}")
                             if missing_people:
                                 c2.caption(f"❌ Missing: {', '.join(missing_people)}")
                             
+                            # Spalte 3: NEU: Prozentangaben statt Balken
                             sc1, sc2 = c3.columns(2)
                             with sc1:
                                 st.write(f"💙 **Interest**")
@@ -282,7 +318,6 @@ elif page == "Group Calendar":
                     "borderColor": color
                 })
                 
-                # Prepare data for visualization module
                 visualization_data.append({
                     "summary": event.get('summary', 'Termin'),
                     "start": event['start'],
@@ -293,7 +328,6 @@ elif page == "Group Calendar":
         if cal_events:
             calendar(events=cal_events, options={"initialView": "dayGridMonth", "height": 700})
             st.markdown("---")
-            # CALL VISUALIZATION MODULE
             visualization.show_visualizations(visualization_data)
         else:
             st.info("No events found.")
