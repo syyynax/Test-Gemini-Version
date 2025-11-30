@@ -99,8 +99,8 @@ elif page == "Activity Planner":
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         with st.expander("🔍 Diagnostic: Google Calendar Events", expanded=False):
-            st.write(f"Google found {stats['total_events']} events.")
-            if stats['unassigned_titles']:
+            st.write(f"Google found {stats.get('total_events', 0)} events.")
+            if stats.get('unassigned_titles'):
                 st.write(f"Ignored: {stats['unassigned_titles']}")
 
     st.divider()
@@ -144,9 +144,10 @@ elif page == "Activity Planner":
                 total_group_size = len(selected)
 
                 for idx, row in ranked_df.head(10).iterrows():
-                    # Scores holen
-                    interest_score = row['final_interest_score']
-                    avail_score = row['availability_score']
+                    # --- FIX: Sicherer Zugriff auf Scores ---
+                    # Wir prüfen, ob die Spalte existiert. Falls nicht, nehmen wir 0 als Fallback.
+                    interest_score = row.get('final_interest_score', 0)
+                    avail_score = row.get('availability_score', 0)
                     
                     # Logik für Kategorie-Bestimmung
                     is_avail_perfect = (avail_score >= 0.99)
