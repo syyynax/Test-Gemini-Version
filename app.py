@@ -1,3 +1,14 @@
+import streamlit as st
+import database
+import auth
+import google_service
+import recommender
+from streamlit_calendar import calendar
+from datetime import datetime
+
+# --- SETUP ---
+st.set_page_config(page_title="Meetly", page_icon="👋", layout="wide")
+database.init_db()
 # --- SIDEBAR ---
 st.sidebar.title("Navigation")
 # "Start" is now the first option (Default)
