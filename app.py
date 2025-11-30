@@ -46,7 +46,7 @@ elif page == "Profiles":
         c1, c2, c3 = st.columns(3)
         prefs = []
         if c1.checkbox("Sport"): prefs.append("Sport")
-        if c2.checkbox("Culture"): prefs.append("Kultur") # DB values kept stable
+        if c2.checkbox("Culture"): prefs.append("Kultur")
         if c3.checkbox("Party"): prefs.append("Party")
         if c1.checkbox("Food"): prefs.append("Essen")
         if c2.checkbox("Education"): prefs.append("Education")
@@ -98,7 +98,7 @@ elif page == "Activity Planner":
         # Fetch Events
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
-        with st.expander("🔍 Diagnostic: Events", expanded=False):
+        with st.expander("🔍 Diagnostic: Google Calendar Events", expanded=False):
             st.write(f"Google found {stats['total_events']} events.")
             if stats['unassigned_titles']:
                 st.write(f"Ignored: {stats['unassigned_titles']}")
@@ -113,7 +113,7 @@ elif page == "Activity Planner":
         selected = st.multiselect("Who is planning?", user_names, default=user_names)
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
-        # Session State for Results
+        # Session State
         if 'ranked_results' not in st.session_state:
             st.session_state.ranked_results = None
 
@@ -127,7 +127,7 @@ elif page == "Activity Planner":
                 user_busy_map, 
                 selected, 
                 user_prefs_dict,
-                min_attendees=1
+                min_attendees=1 
             )
 
         if st.session_state.ranked_results is not None:
@@ -144,89 +144,91 @@ elif page == "Activity Planner":
                 total_group_size = len(selected)
 
                 for idx, row in ranked_df.head(10).iterrows():
-                    match_score = row['match_score']
-                    attending_count = row['attendee_count']
-                    is_all_attending = (attending_count == total_group_size)
-                    is_high_match = (match_score > 0.6) 
+                    # Scores holen
+                    interest_score = row['final_interest_score']
+                    avail_score = row['availability_score']
                     
-                    # --- ZEITFORMATIERUNG ANPASSEN ---
-                    # Zeigt jetzt: "Monday, 14:00 - 16:00"
+                    # Logik für Kategorie-Bestimmung
+                    is_avail_perfect = (avail_score >= 0.99)
+                    is_interest_high = (interest_score > 0.6)
+                    is_interest_perfect = (interest_score >= 0.99)
+                    
                     time_str = f"{row['Start'].strftime('%A, %H:%M')} - {row['End'].strftime('%H:%M')}"
 
+                    attending_count = row['attendee_count']
                     missing_people = []
-                    if not is_all_attending:
+                    if not is_avail_perfect:
                         attending_list = [x.strip() for x in row['attendees'].split(',')]
                         missing_people = [p for p in selected if p not in attending_list]
 
-                    # 1. THE JACKPOT
-                    if is_all_attending and is_high_match:
+                    # 1. THE JACKPOT (Gold): 100% Zeit + 100% Interesse
+                    if is_avail_perfect and is_interest_perfect:
                         with st.container(border=True):
                             st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
-                            st.info("✨ Everyone is free AND it matches your interests perfectly!")
+                            st.info("✨ Everyone is free AND it matches everyone's interests perfectly!")
                             
                             c1, c2, c3 = st.columns([1, 2, 1])
-                            c1.write(f"📅 **{time_str}**") # Neue Zeit
+                            c1.write(f"📅 **{time_str}**")
                             c1.caption(f"Category: {row['Category']}")
                             
                             c2.write(f"**Interests Matched:** {row['matched_tags']}")
-                            c2.progress(match_score, text="Interest Match Strength")
                             
-                            c3.metric("Availability", "100%", "All available")
+                            # NEU: Prozentangaben statt Balken
+                            c3.write(f"💙 **Interest:** {int(interest_score*100)}%")
+                            c3.write(f"🕒 **Availability:** {int(avail_score*100)}%")
                     
-                    # 2. TIME PERFECT
-                    elif is_all_attending:
+                    # 2. TIME PERFECT (Grün): 100% Zeit
+                    elif is_avail_perfect:
                         with st.container(border=True):
                             st.markdown(f"### ✅ **GOOD TIMING: {row['Title']}**")
                             st.success("🕒 Everyone is free at this time.")
                             
                             c1, c2, c3 = st.columns([1, 2, 1])
-                            c1.write(f"📅 **{time_str}**") # Neue Zeit
+                            c1.write(f"📅 **{time_str}**")
                             
                             c2.write(f"**Interests Matched:** {row['matched_tags']}")
-                            if match_score < 0.3:
-                                c2.warning("Low interest match, but the time works for everyone!")
-                            else:
-                                c2.progress(match_score, text="Interest Match Strength")
+                            if interest_score < 0.3:
+                                c2.caption("Low interest match, but timing works!")
                             
-                            c3.metric("Availability", "100%", "All available")
+                            # NEU: Prozentangaben statt Balken
+                            c3.write(f"💙 **Interest:** {int(interest_score*100)}%")
+                            c3.write(f"🕒 **Availability:** {int(avail_score*100)}%")
 
-                    # 3. INTEREST PERFECT
-                    elif is_high_match:
+                    # 3. INTEREST PERFECT (Blau): Hohes Interesse
+                    elif is_interest_high:
                         with st.container(border=True):
                             st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
-                            st.warning(f"⚠️ Only **{attending_count}/{total_group_size}** people are free, but they will love it!")
+                            st.warning(f"⚠️ Only {attending_count}/{total_group_size} people are free, but they will love it!")
                             
                             c1, c2, c3 = st.columns([1, 2, 1])
-                            c1.write(f"📅 **{time_str}**") # Neue Zeit
+                            c1.write(f"📅 **{time_str}**")
                             
                             c2.write(f"**Who can go:** {row['attendees']}")
                             if missing_people:
                                 c2.caption(f"Busy: {', '.join(missing_people)}")
                             
-                            c3.metric("Match Score", f"{int(match_score*100)}%", "Very High")
+                            # NEU: Prozentangaben statt Balken
+                            c3.write(f"💙 **Interest:** {int(interest_score*100)}%")
+                            c3.write(f"🕒 **Availability:** {int(avail_score*100)}%")
 
-                    # 4. NORMAL / COMPROMISE: Standard suggestion
+                    # 4. NORMAL / COMPROMISE
                     else:
                         with st.expander(f"{row['Title']} ({attending_count}/{total_group_size} Ppl)"):
-                            c1, c2, c3 = st.columns([1, 1, 1]) # Jetzt 3 Spalten für mehr Infos
+                            c1, c2, c3 = st.columns([1, 1, 1]) 
                             
-                            # Spalte 1: Zeit & Kategorie
+                            # Spalte 1
                             c1.write(f"📅 **{time_str}**")
                             c1.caption(f"Category: {row['Category']}")
                             
-                            # Spalte 2: Teilnehmer & Fehlende
+                            # Spalte 2
                             c2.write(f"**Attendees:** {row['attendees']}")
                             if missing_people:
                                 c2.caption(f"❌ Missing: {', '.join(missing_people)}")
                             
-                            # Spalte 3 (NEU): Match Score visualisieren!
-                            c3.metric("Match Score", f"{int(match_score*100)}%")
-                            if row['matched_tags'] != "General":
-                                c3.caption(f"Matches: {row['matched_tags']}")
-                            else:
-                                c3.caption("No specific interest match")
+                            # Spalte 3: NEU: Prozentangaben statt Balken
+                            c3.write(f"💙 **Interest:** {int(interest_score*100)}%")
+                            c3.write(f"🕒 **Availability:** {int(avail_score*100)}%")
                             
-                            # Zusätzliche Infos unten drunter
                             st.write("**Why this option?**")
                             if attending_count > 1:
                                 st.info(f"It works for {attending_count} people.")
