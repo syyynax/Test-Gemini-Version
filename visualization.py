@@ -76,6 +76,7 @@ def show_visualizations(google_events):
     Main function to render the visualization section.
     """
     st.markdown("### 📊 Data Visualization")
+    st.caption("See how busy you are this week and who among you is the busiest.") # DEIN NEUER UNTERTITEL
     
     df = events_to_df(google_events)
 
