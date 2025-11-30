@@ -105,6 +105,9 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
             # Event Text für einfachen Abgleich
             event_text = (str(event.get('Category', '')) + " " + str(event.get('Description', '')) + " " + str(event['Title'])).lower()
             
+            # WICHTIG: Wir prüfen hier auf EXAKTE Übereinstimmung der Tags
+            direct_hit = False 
+            
             for attendee in attendees:
                 # Hole Interessen String vom User (z.B. "Sport,Kultur")
                 u_prefs = all_user_prefs.get(attendee, "")
@@ -113,15 +116,19 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
                 # Checke welche Tags zutreffen
                 for pref in u_prefs.split(','):
                     clean_pref = pref.strip()
+                    # Wenn das Interesse (z.B. "Kultur") im Event-Text vorkommt
                     if clean_pref and clean_pref.lower() in event_text:
                         matched_tags.add(clean_pref)
+                        direct_hit = True
 
             event_entry = event.copy()
             event_entry['attendees'] = ", ".join(attendees)
             event_entry['attendee_count'] = len(attendees)
             event_entry['group_prefs_text'] = " ".join(attendee_prefs_list)
-            # Speichere die Treffer als schönen String (z.B. "Sport, Kultur")
             event_entry['matched_tags'] = ", ".join(matched_tags) if matched_tags else "General"
+            # Wir merken uns, ob es einen direkten Keyword-Treffer gab
+            event_entry['is_direct_hit'] = direct_hit 
+            
             results.append(event_entry)
 
     if not results:
@@ -129,11 +136,10 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
 
     result_df = pd.DataFrame(results)
 
-    # 3. Machine Learning Score
+    # 3. Machine Learning Score (TF-IDF)
     result_df['event_features'] = (
         result_df['Title'].fillna('') + " " + 
         result_df['Category'].fillna('') + " " +  
-        result_df['Category'].fillna('') + " " +
         result_df['Description'].fillna('')
     )
     
@@ -147,8 +153,21 @@ def find_best_slots_for_group(events_df, user_busy_map, selected_users, all_user
             for idx, row in result_df.iterrows():
                 user_vector = tfidf.transform([row['group_prefs_text']])
                 sim = cosine_similarity(user_vector, tfidf_matrix[idx])
-                scores.append(sim[0][0])
+                
+                # --- DER BOOST FIX ---
+                # Wenn wir einen direkten Treffer (is_direct_hit) hatten, 
+                # zwingen wir den Score auf 100% (1.0).
+                # Das überstimmt die mathematische Ähnlichkeit.
+                raw_score = sim[0][0]
+                if row['is_direct_hit']:
+                    final_score = 1.0
+                else:
+                    final_score = raw_score
+                
+                scores.append(final_score)
+                
             result_df['match_score'] = scores
+            
     except Exception as e:
         print(f"ML Fehler: {e}")
         result_df['match_score'] = 0.5
