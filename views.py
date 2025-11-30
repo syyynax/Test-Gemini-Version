@@ -104,7 +104,7 @@ def render_card_content(row, time_str, interest_score, avail_score, missing_peop
     To avoid writing the same UI code 4 times, we put the common layout logic here.
     """
     # Create a 3-column layout for the card content
-    c1, c2, c3 = st.columns([1, 2, 2])
+    c1, c2, c3 = st.columns([1, 2, 1.5])
     
     # Column 1: Time and Category
     c1.write(f"📅 **{time_str}**")
