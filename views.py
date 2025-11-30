@@ -122,7 +122,7 @@ def render_card_content(row, time_str, interest_score, avail_score, missing_peop
         st.write(f"💙 **Interest**")
         st.write(f"**{int(interest_score*100)}%**")
     with sc2:
-        st.write(f"🕒 **Avail.**")
+        st.write(f"🕒 **Availability**")
         st.write(f"**{int(avail_score*100)}%**")
     
     # Additional information (only shown for 'Normal' category expanders)
