@@ -121,7 +121,7 @@ def render_card_content(row, time_str, location, interest_score, avail_score, mi
 
     # The "Add to Calendar" button
     if st.button(f"Add '{row['Title']}' to Calendar", key=f"btn_{idx}"):
-        save_callback(row, color, interest_score)
+        save_callback(row, color, interest_score, location)
         
 def show_activity_planner():
     """
@@ -248,7 +248,7 @@ def show_activity_planner():
                         missing_people = [p for p in selected if p not in attending_list]
 
                     # Define the Callback Function for saving to DB
-                    def save_to_db_callback(r, col, score):
+                    def save_to_db_callback(r, col, score, loc):
                         saved = database.add_saved_event(
                             f"{r['Title']}",
                             r['Start'].strftime("%Y-%m-%dT%H:%M:%S"),
@@ -257,6 +257,7 @@ def show_activity_planner():
                             r['Category'],
                             r['attendees'],
                             float(score)
+                            loc
                         )
                         if saved:
                             st.toast(f"Saved '{r['Title']}' permanently to Calendar!")
