@@ -77,8 +77,7 @@ def show_visualizations(events_list):
     """
     Main function to render the visualization section.
     """
-    st.markdown("### 📊 Data Visualization")
-    st.caption("See how busy you are this week and who among you is the busiest.")
+    st.markdown("### See how busy you are this week and who among you is the busiest.")
     
     df = events_to_df(events_list)
 
