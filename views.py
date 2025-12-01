@@ -22,12 +22,12 @@ def show_start_page():
     with col1:
         st.markdown("""
         ### How it works:
-        1. **👤 Create Profile** Go to *Profiles* and register yourself.
-        2. **📅 Connect Calendar** Link your Google Calendar in the *Activity Planner*.
-        3. **🚀 Plan** Let Meetly find the perfect time slots and activities for your group!
+        1. **Create Profile** Go to *Profiles* and register yourself.
+        2. **Connect Calendar** Link your Google Calendar in the *Activity Planner*.
+        3. **Plan** Let Meetly find the perfect time slots and activities for your group!
         """)
     with col2:
-        st.info("👈 Select 'Profiles' in the menu on the left to get started!")
+        st.info("Select 'Profiles' in the menu on the left to get started!")
 
 def show_profiles_page():
     """
@@ -37,7 +37,7 @@ def show_profiles_page():
     st.write("Create profiles for you and your friends here.")
     
     with st.form("profile_form", clear_on_submit=True):
-        st.info("💡 Tip: Use different emails for different people.")
+        st.info("Use different emails for different people.")
         name = st.text_input("Your Name *")
         email = st.text_input("Email (serves as ID) *")
         
@@ -128,7 +128,7 @@ def show_activity_planner():
     Renders the main planning interface.
     Here users connect their calendar, select participants, and run the analysis.
     """
-    st.title("📅 Smart Group Planner")
+    st.title("Smart Group Planner")
     
     if 'results_limit' not in st.session_state:
         st.session_state.results_limit = 10
@@ -176,7 +176,7 @@ def show_activity_planner():
             selected_date = st.date_input("Plan for which week?", value=today)
             start_of_week = selected_date - timedelta(days=selected_date.weekday())
             end_of_week = start_of_week + timedelta(days=6)
-            st.caption(f"📅 Showing events for: **{start_of_week.strftime('%d.%m.%Y')} - {end_of_week.strftime('%d.%m.%Y')}**")
+            st.caption(f"Showing events for: **{start_of_week.strftime('%d.%m.%Y')} - {end_of_week.strftime('%d.%m.%Y')}**")
 
         user_prefs_dict = {u[0]: u[1] for u in all_users_data}
 
@@ -297,7 +297,7 @@ def show_activity_planner():
                 if len(ranked_df) > current_limit:
                     col_b1, col_b2, col_b3 = st.columns([1, 2, 1])
                     with col_b2:
-                        if st.button("👇 Show more events", type="primary", use_container_width=True):
+                        if st.button("Show more events", type="primary", use_container_width=True):
                             st.session_state.results_limit += 10
                             st.rerun()
 
@@ -308,7 +308,7 @@ def show_group_calendar():
     """
     Renders the visual calendar combining Google events and saved group activities.
     """
-    st.title("🗓️ Group Calendar Overview")
+    st.title("Group Calendar Overview")
     auth_result = auth.get_google_service()
     if auth_result and not isinstance(auth_result, str):
         service = auth_result
@@ -366,7 +366,7 @@ def show_group_calendar():
                 clicked_event = calendar_return["eventClick"]["event"]
                 props = clicked_event.get("extendedProps", {})
                 
-                st.markdown("### 📌 Event Details")
+                st.markdown("### Event Details")
                 with st.container(border=True):
                     st.markdown(f"## {clicked_event['title']}")
                     
@@ -388,7 +388,7 @@ def show_group_calendar():
                     except:
                         time_display = f"{raw_start} - {raw_end}"
                     
-                    c1.write(f"🕒 **Time:** {time_display}")
+                    c1.write(f" **Time:** {time_display}")
 
                     loc = props.get('location', '-')
                     if loc and loc != "TBD":
@@ -396,7 +396,7 @@ def show_group_calendar():
                     
                     # Display extra info if available (Group Event) vs (Google Event)
                     if "category" in props and props.get("type") != "google":
-                        c1.info(f"🏷️ **Category:** {props.get('category', 'General')}")
+                        c1.info(f"**Category:** {props.get('category', 'General')}")
                         c2.write(f"👥 **Attendees:** {props.get('attendees', 'Unknown')}")
                         score_val = props.get('match_score')
                         if score_val is not None:
