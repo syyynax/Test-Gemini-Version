@@ -45,7 +45,7 @@ def show_profiles_page():
         c1, c2, c3 = st.columns(3)
         prefs = []
         if c1.checkbox("Sport"): prefs.append("Sport")
-        if c2.checkbox("Culture"): prefs.append("Cultur")
+        if c2.checkbox("Culture"): prefs.append("Culture")
         if c3.checkbox("Party"): prefs.append("Party")
         if c1.checkbox("Food"): prefs.append("Food")
         if c2.checkbox("Music"): prefs.append("Music")
