@@ -85,7 +85,7 @@ def render_card_content(row, time_str, location, interest_score, avail_score, mi
     c1, c2, c3 = st.columns([1, 2, 1.5])
     
     # Column 1: Time & Location
-    c1.write(f"📅 **{time_str}**")
+    c1.write(f" **{time_str}**")
     
     # Hier trat der Fehler auf, weil 'location' oben fehlte:
     c1.write(f"📍 **{location}**") 
@@ -100,10 +100,10 @@ def render_card_content(row, time_str, location, interest_score, avail_score, mi
     # Column 3: The Scores (Side-by-Side)
     sc1, sc2 = c3.columns(2)
     with sc1:
-        st.write(f"💙 **Interest**")
+        st.write(f" **Interest**")
         st.write(f"**{int(interest_score*100)}%**")
     with sc2:
-        st.write(f"🕒 **Availability**")
+        st.write(f" **Availability**")
         st.write(f"**{int(avail_score*100)}%**")
     
     # Extra text for normal category
@@ -151,7 +151,7 @@ def show_activity_planner():
         user_busy_map, stats = google_service.fetch_and_map_events(service, all_user_names)
         
         # Diagnostic box to help users debug why events might be missing
-        with st.expander("🔍 Diagnostic: Google Calendar Events", expanded=False):
+        with st.expander(" Diagnostic: Google Calendar Events", expanded=False):
             st.write(f"Google found {stats.get('total_events', 0)} events.")
             if stats.get('unassigned_titles'):
                 st.write(f"Ignored: {stats['unassigned_titles']}")
@@ -270,21 +270,21 @@ def show_activity_planner():
                     if is_avail_perfect and is_interest_perfect:
                         with st.container(border=True):
                             st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
-                            st.info("✨ Everyone is free AND it matches everyone's interests perfectly!")
+                            st.info( Everyone is free AND it matches everyone's interests perfectly!")
                             render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#FFD700")
                     
                     # 2. TIME PERFECT (Green)
                     elif is_avail_perfect:
                         with st.container(border=True):
                             st.markdown(f"### ✅ **GOOD TIMING: {row['Title']}**")
-                            st.success("🕒 Everyone is free at this time.")
+                            st.success(" Everyone is free at this time.")
                             render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#28a745")
 
                     # 3. INTEREST PERFECT (Blue)
                     elif is_interest_high:
                         with st.container(border=True):
                             st.markdown(f"### 💙 **HIGH INTEREST: {row['Title']}**")
-                            st.warning(f"⚠️ Only {attending_count}/{total_group_size} people are free, but they will love it!")
+                            st.warning(f" Only {attending_count}/{total_group_size} people are free, but they will love it!")
                             render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#1E90FF")
 
                     # 4. NORMAL (Grey)
@@ -400,7 +400,7 @@ def show_group_calendar():
                         c2.write(f"👥 **Attendees:** {props.get('attendees', 'Unknown')}")
                         score_val = props.get('match_score')
                         if score_val is not None:
-                            c2.write(f"💙 **Interest Score:** {int(float(score_val)*100)}%")
+                            c2.write(f" **Interest Score:** {int(float(score_val)*100)}%")
                     else:
                         title = clicked_event['title']
                         if ":" in title:
