@@ -19,7 +19,10 @@ def fetch_and_map_events(service, all_user_names):
     # 1. Define Time Range: Look back 30 days to include recent history and future events.
     # We use UTC to ensure consistency across timezones.
     start_dt = datetime.utcnow() - timedelta(days=30)
-    time_min = start_dt.isoformat() + 'Z'  # 'Z' indicates UTC time
+    end_dt = datetime.utcnow() + timedelta(days=180)
+
+    time_min = start_dt.isoformat() + 'Z' 
+    time_max = end_dt.isoformat() + 'Z'
     
     # Initialize data structures to store results and debug info
     user_busy_map = {name: [] for name in all_user_names}
@@ -68,11 +71,18 @@ def fetch_and_map_events(service, all_user_names):
                 timeMin=time_min, 
                 maxResults=50,      # Limit to 50 events per calendar to avoid hitting API limits
                 singleEvents=True,  # Expand recurring events into individual instances
-                orderBy='startTime'
+                orderBy='startTime',
+                pageToken=page_token
             ).execute()
             
-            raw_events = events_result.get('items', [])
-            total_events_count += len(raw_events)
+            items = events_result.get('items', [])
+                all_raw_events_for_this_cal.extend(items)
+                
+                page_token = events_result.get('nextPageToken')
+                if not page_token:
+                    break
+
+            total_events_count += len(all_raw_events_for_this_cal)
             
             for event in raw_events:
                 summary = event.get('summary', f'Event').strip()
