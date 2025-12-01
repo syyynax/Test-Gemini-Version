@@ -270,7 +270,7 @@ def show_activity_planner():
                     if is_avail_perfect and is_interest_perfect:
                         with st.container(border=True):
                             st.markdown(f"### 🏆 **PERFECT MATCH: {row['Title']}**")
-                            st.info( Everyone is free AND it matches everyone's interests perfectly!")
+                            st.info("Everyone is free AND it matches everyone's interests perfectly!")
                             render_card_content(row, time_str, location, interest_score, avail_score, missing_people, idx, save_to_db_callback, "#FFD700")
                     
                     # 2. TIME PERFECT (Green)
