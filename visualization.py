@@ -1,3 +1,10 @@
+# This file is responsible for analyzing and visualizing event data, sourced from Google Calender or a local database. 
+# Key components of this file:
+# - Data transformation: Converts raw event lists into clean pandas df
+# - Data aggregation: Calculates event counts per person and per day of the week 
+# - Visualization: Generates interactive charts (using Matplotlib/Seaborn within Streamlit)
+# - UI Integration: Provides the Streamlit interface for filterint data by date range and toggling between different chart types 
+
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
