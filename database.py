@@ -1,3 +1,14 @@
+# This file provides core database management utilities for the group event planner
+# It uses SQLite for local, lightweight storage of key application data.
+# Key components:
+# - Schema initialization: Creating the necessary users and saved_events tables
+# - User management: Handling the creation, retrieval and updating of user profiles and their
+# preference keywords
+# - Event persistence: Storing finalized, recommended events selected by the group, along with 
+# their detailed metadata (e.g., match score, attendees) for display on a calendar view
+# - Data integrity: Ensuring unique user records (via email) and preventing duplicate event entries 
+
+
 import sqlite3
 import os
 
