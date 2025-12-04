@@ -1,3 +1,9 @@
+# This file contains the logic necessary to authenticate the application with Google Calendar API 
+# using the OAuth 2.0 flow. 
+# It is critical to securely obtain the user's  permission to read their calendar data. 
+# The function manages credentials, handles redirection do Google's login page, processes the callback (code exchange) 
+# and creates the usable API service object.
+
 import streamlit as st
 import os
 from google_auth_oauthlib.flow import Flow
@@ -9,30 +15,39 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 # --- APP URL ---
 # This URL must match exactly what is configured in the Google Cloud Console.
-# It is the address where users are sent back after logging in.
+# It is the address where users are sent back after logging in and granting permission.
 REDIRECT_URI = "https://meetly-augzgdgermpiwnemrvgyuv.streamlit.app"
 
 def get_google_service():
     """
-    Handles the entire OAuth2 login flow.
-    It attempts to read credentials from Streamlit Secrets first (for production),
-    and falls back to a local JSON file (for local development).
+    Handles the entire OAuth2 login flow for Google Calendar API access.
+    Flow is managed in three sequential steps:
+    1. Check if the user is already authenticated in the current session
+    2. Load client secrets (from Streamlit Secrets of local file) and initialize the OAuth flow. 
+    3. Process the authorization code upon callback or generate the login URL.
+
+    Returns:
+        object/str/None: The Google Calendar API service object (if logged in), the authorization URL
+        (if login is required), or None (on failure)
     """
     # 1. Check Session State
     # If the user is already logged in during this session, we don't need to authenticate again.
+    # The application uses Streamlit's session state to store credentials, avoiding re-authentication
+    # every time the app reruns 
     if "credentials" not in st.session_state:
         st.session_state.credentials = None
 
     # If valid credentials exist, build and return the API service immediately.
     if st.session_state.credentials:
+        # Build and return the high-level API service object using the acquired credentials. 
         return build("calendar", "v3", credentials=st.session_state.credentials)
 
-    # 2. Start Login Flow
+    # 2. Initialize Login Flow (Configuration Loading)
     flow = None
     
-    # Strategy A: Load Secrets from Streamlit Cloud (Production)
-    # We check if the specific secret structure 'GOOGLE_OAUTH_CLIENT' exists.
+    # Strategy A: Load Secrets from Streamlit Cloud (Production Environment)
     secrets_data = None
+    # Check common locations for the OAuth client configuration within Streamlit secrets
     if "GOOGLE_OAUTH_CLIENT" in st.secrets and "web" in st.secrets["GOOGLE_OAUTH_CLIENT"]:
         secrets_data = st.secrets["GOOGLE_OAUTH_CLIENT"]["web"]
     elif "web" in st.secrets:
