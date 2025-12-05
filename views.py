@@ -1,12 +1,3 @@
-# This file acts as the presentation layer for the Streamlit application
-# It contains all the functions responsible for generating the user interfase (UI)
-# for the different pages in the application's sidebar navigation 
-# Key components:
-# - Managing page structure (Start, Profiles, Planner, Calender)
-# - Handling user input via Streamlit widgets (form, buttons, date pickers)
-# - Orchestrating data flow by calling logic functions from the 'auth', 'database', 'google service', 'recommender' and 'visualization' files to display rsults. 
-# - Rendering complex components like the interactive calender and event cards 
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
