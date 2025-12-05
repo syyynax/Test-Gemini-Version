@@ -1,7 +1,3 @@
-# This file contains the fetch_and_map_events function, which connects to the google calendar
-# to retrieve all scheduled events for a defined period and maps these events to specific users 
-# to create a availability map 
-
 from datetime import datetime, timedelta
 
 def fetch_and_map_events(service, all_user_names):
