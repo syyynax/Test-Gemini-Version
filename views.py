@@ -145,7 +145,7 @@ def show_activity_planner():
     if isinstance(auth_result, str):
         # Authentication not complete (auth-result is the URL to connect)
         st.warning("Not connected.")
-        st.markdown(f'<a href="{auth_result}" target="_self">🔗 Connect with Google Calendar</a>', unsafe_allow_html=True)
+        st.link_button("Connect with Google Calendar", auth_result)
     elif auth_result:
         # Authentification successful (auth-result is the service objects)
         service = auth_result
