@@ -1,8 +1,20 @@
 import sqlite3
 import os
+import streamlit as st  # Wichtig: Streamlit importieren
 
-# Define the path to our database file
-DB_PATH = "user_database.sqlite"
+# 1. Wir holen uns die Info aus den Secrets (development oder production)
+# Wenn nichts in den Secrets steht, gehen wir sicherheitshalber von "development" aus.
+env_status = st.secrets.get("general", {}).get("environment", "development")
+
+# 2. Wir setzen den Pfad zur Datenbank basierend auf der Umgebung
+if env_status == "production":
+    # Live-App auf dem Server
+    DB_PATH = "user_database_LIVE.sqlite"
+    print("Nutze LIVE Datenbank.")
+else:
+    # Lokal auf deinem Laptop
+    DB_PATH = "user_database_DEV.sqlite"
+    print("Nutze TEST Datenbank (Development).")
 
 def init_db():
     """
