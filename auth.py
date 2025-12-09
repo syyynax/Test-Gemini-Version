@@ -3,21 +3,20 @@ import os
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-# --- FIX FÜR LOCALHOST ---
-# Das erlaubt OAuth über HTTP (statt HTTPS), was für localhost nötig ist
+# Allow OAuth over HTTP (necessary for localhost testing).
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Configuration
+# Configuration: Request read-only access to the Google Calendar.
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
-# --- DYNAMIC APP URL ---
-# Wir lesen den Status aus den Secrets
+# --- DYNAMIC REDIRECT URI ---
+# 1. Get current environment ('production' or 'development') from secrets.
 env_status = st.secrets.get("general", {}).get("environment", "development")
 
+# 2. Set the correct Redirect URI based on environment to avoid mismatch errors.
 if env_status == "production":
     REDIRECT_URI = "https://meetly-augzgdgermpiwnemrvgyuv.streamlit.app"
 else:
-    # WICHTIG: Kein Schrägstrich am Ende, exakt wie in der Google Console!
     REDIRECT_URI = "http://localhost:8501"
 
 def get_google_service():
